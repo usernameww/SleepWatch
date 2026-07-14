@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SleepWatch</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">首页</string>
+    <string name="nav_statistics">统计</string>
+    <string name="nav_achievements">成就</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Home -->
+    <string name="home_title">睡眠监测</string>
+    <string name="home_monitoring_active">监测中</string>
+    <string name="home_monitoring_inactive">监测未启动</string>
+    <string name="home_last_sleep">昨晚入睡时间：%s</string>
+    <string name="home_last_score">睡眠评分：%s</string>
+
+    <!-- Alert -->
+    <string name="alert_title">该睡觉了</string>
+    <string name="alert_dismiss">我知道了</string>
+    <string name="alert_skip_tonight">今晚不再提醒</string>
+    <string name="alert_emergency">有紧急事项</string>
+
+    <!-- Service -->
+    <string name="monitor_channel_name">睡眠监测</string>
+    <string name="monitor_notification_title">SleepWatch 监测中</string>
+    <string name="monitor_notification_text">正在监测您的睡眠状态</string>
+    <string name="alert_channel_name">入睡提醒</string>
+</resources>
