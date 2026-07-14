@@ -56,13 +56,13 @@ class CheckAchievementsUseCase @Inject constructor(
         }
 
         // STREAK_WEEK
-        newlyUnlocked += checkStreak(STREAK_WEEK, 7, targetHour, targetMinute)
+        checkStreak(STREAK_WEEK, 7, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
 
         // STREAK_MONTH
-        newlyUnlocked += checkStreak(STREAK_MONTH, 30, targetHour, targetMinute)
+        checkStreak(STREAK_MONTH, 30, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
 
         // STREAK_90
-        newlyUnlocked += checkStreak(STREAK_90, 90, targetHour, targetMinute)
+        checkStreak(STREAK_90, 90, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
 
         // PERFECT_SCORE
         val perfect = achievementRepository.getByType(PERFECT_SCORE)
