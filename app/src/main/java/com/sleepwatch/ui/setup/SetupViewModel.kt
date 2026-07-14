@@ -74,8 +74,15 @@ class SetupViewModel @Inject constructor(
 
     fun allGranted(): Boolean = _permissions.value.all { it.isGranted }
 
+    private val _notificationRequestTrigger = MutableStateFlow(false)
+    val notificationRequestTrigger: StateFlow<Boolean> = _notificationRequestTrigger
+
+    fun resetNotificationTrigger() {
+        _notificationRequestTrigger.value = false
+    }
+
     private fun requestNotificationPermission() {
-        // Handled by Activity result launcher
+        _notificationRequestTrigger.value = true
     }
 
     private fun requestOverlayPermission() {

@@ -26,4 +26,25 @@ class AlertMessageEditViewModel @Inject constructor(
             repository.update(message.copy(isEnabled = !message.isEnabled))
         }
     }
+
+    fun addMessage() {
+        viewModelScope.launch {
+            val currentMessages = messages.value
+            val maxLevel = currentMessages.maxOfOrNull { it.level } ?: 0
+            repository.insert(
+                AlertMessage(
+                    level = maxLevel + 1,
+                    title = "新提醒",
+                    content = "请输入提醒内容",
+                    healthTip = "请输入健康知识"
+                )
+            )
+        }
+    }
+
+    fun deleteMessage(id: Long) {
+        viewModelScope.launch {
+            repository.deleteById(id)
+        }
+    }
 }

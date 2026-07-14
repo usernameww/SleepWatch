@@ -2,6 +2,7 @@ package com.sleepwatch.service
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -34,18 +35,16 @@ class AlarmScheduler @Inject constructor(
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setRepeating(
+                alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     calendar.timeInMillis,
-                    intervalMinutes * 60 * 1000L,
                     pendingIntent
                 )
             }
         } else {
-            alarmManager.setRepeating(
+            alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
-                intervalMinutes * 60 * 1000L,
                 pendingIntent
             )
         }
@@ -61,8 +60,15 @@ class AlarmScheduler @Inject constructor(
     }
 }
 
-class MonitorCheckReceiver : android.content.BroadcastReceiver() {
+class MonitorCheckReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        // MonitorService will handle the check via its own logic
+        val serviceIntent = Intent(context, MonitorService::class.java).apply {
+            action = MonitorService.ACTION_SCREEN_ON
+        }
+        try {
+            context.startService(serviceIntent)
+        } catch (_: Exception) {
+            // Service may not be running
+        }
     }
 }

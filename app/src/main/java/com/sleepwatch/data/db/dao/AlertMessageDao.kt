@@ -26,4 +26,7 @@ interface AlertMessageDao {
 
     @Query("DELETE FROM alert_messages")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM alert_messages WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

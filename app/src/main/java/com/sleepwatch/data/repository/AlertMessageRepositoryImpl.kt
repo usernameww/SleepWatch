@@ -25,4 +25,6 @@ class AlertMessageRepositoryImpl @Inject constructor(
     override suspend fun getByLevel(level: Int): AlertMessage? = dao.getByLevel(level)
 
     override suspend fun deleteAll() = dao.deleteAll()
+
+    override suspend fun deleteById(id: Long) = dao.deleteById(id)
 }

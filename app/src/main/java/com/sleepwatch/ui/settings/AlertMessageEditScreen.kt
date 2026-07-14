@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -42,9 +43,19 @@ fun AlertMessageEditScreen(
                 AlertMessageCard(
                     message = message,
                     onToggle = { viewModel.toggleEnabled(message) },
-                    onUpdate = { viewModel.updateMessage(it) }
+                    onUpdate = { viewModel.updateMessage(it) },
+                    onDelete = { viewModel.deleteMessage(message.id) }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+            }
+            item {
+                Button(
+                    onClick = { viewModel.addMessage() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("添加消息")
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -54,7 +65,8 @@ fun AlertMessageEditScreen(
 private fun AlertMessageCard(
     message: AlertMessage,
     onToggle: () -> Unit,
-    onUpdate: (AlertMessage) -> Unit
+    onUpdate: (AlertMessage) -> Unit,
+    onDelete: () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var editedTitle by remember(message) { mutableStateOf(message.title) }
@@ -79,10 +91,19 @@ private fun AlertMessageCard(
                     text = "第 ${message.level} 级：${message.title}",
                     style = MaterialTheme.typography.titleMedium
                 )
-                Switch(
-                    checked = message.isEnabled,
-                    onCheckedChange = { onToggle() }
-                )
+                Row {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "删除",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Switch(
+                        checked = message.isEnabled,
+                        onCheckedChange = { onToggle() }
+                    )
+                }
             }
 
             if (isExpanded) {

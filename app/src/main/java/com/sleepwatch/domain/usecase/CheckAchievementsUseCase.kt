@@ -37,72 +37,95 @@ class CheckAchievementsUseCase @Inject constructor(
 
     suspend fun checkAll(targetHour: Int, targetMinute: Int): List<String> {
         val newlyUnlocked = mutableListOf<String>()
-
-        // FIRST_EARLY_SLEEP
-        val firstEarly = achievementRepository.getByType(FIRST_EARLY_SLEEP)
-        if (firstEarly != null && firstEarly.unlockedAt == null) {
-            val cal = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, targetHour)
-                set(Calendar.MINUTE, targetMinute)
-                set(Calendar.SECOND, 0)
-            }
-            val count = sleepRecordRepository.countEarlySleeps(
-                cal.timeInMillis, "2000-01-01", "2099-12-31"
-            )
-            if (count > 0) {
-                achievementRepository.unlock(FIRST_EARLY_SLEEP, System.currentTimeMillis())
-                newlyUnlocked.add(FIRST_EARLY_SLEEP)
-            }
-        }
-
-        // STREAK_WEEK
-        checkStreak(STREAK_WEEK, 7, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
-
-        // STREAK_MONTH
-        checkStreak(STREAK_MONTH, 30, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
-
-        // STREAK_90
-        checkStreak(STREAK_90, 90, targetHour, targetMinute)?.let { newlyUnlocked.add(it) }
-
-        // PERFECT_SCORE
-        val perfect = achievementRepository.getByType(PERFECT_SCORE)
-        if (perfect != null && perfect.unlockedAt == null) {
-            val cal = Calendar.getInstance()
-            val today = dateFormat.format(cal.time)
-            val record = sleepRecordRepository.getByDate(today)
-            if (record?.sleepScore == 100f) {
-                achievementRepository.unlock(PERFECT_SCORE, System.currentTimeMillis())
-                newlyUnlocked.add(PERFECT_SCORE)
-            }
-        }
-
-        return newlyUnlocked
-    }
-
-    private suspend fun checkStreak(type: String, days: Int, targetHour: Int, targetMinute: Int): String? {
-        val achievement = achievementRepository.getByType(type) ?: return null
-        if (achievement.unlockedAt != null) return null
-
-        val cal = Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -days)
-        }
-        val startDate = dateFormat.format(cal.time)
-        val endDate = dateFormat.format(Date())
-
         val targetCal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, targetHour)
             set(Calendar.MINUTE, targetMinute)
             set(Calendar.SECOND, 0)
         }
+        val targetTimestamp = targetCal.timeInMillis
 
-        val count = sleepRecordRepository.countEarlySleeps(
-            targetCal.timeInMillis, startDate, endDate
-        )
-        achievementRepository.updateProgress(type, count)
-        if (count >= days) {
+        // FIRST_EARLY_SLEEP
+        checkAndUnlock(FIRST_EARLY_SLEEP) {
+            val count = sleepRecordRepository.countEarlySleeps(targetTimestamp, "2000-01-01", "2099-12-31")
+            count > 0
+        }?.let { newlyUnlocked.add(it) }
+
+        // STREAK_WEEK
+        checkAndUnlock(STREAK_WEEK) { checkConsecutiveDays(7, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+
+        // STREAK_MONTH
+        checkAndUnlock(STREAK_MONTH) { checkConsecutiveDays(30, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+
+        // STREAK_90
+        checkAndUnlock(STREAK_90) { checkConsecutiveDays(90, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+
+        // LOW_ALERT_WEEK
+        checkAndUnlock(LOW_ALERT_WEEK) {
+            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -7) }
+            val startDate = dateFormat.format(cal.time)
+            val endDate = dateFormat.format(Date())
+            val records = mutableListOf<com.sleepwatch.data.db.entity.SleepRecord>()
+            sleepRecordRepository.getRecordsBetween(startDate, endDate).collect { records.addAll(it) }
+            val totalAlerts = records.sumOf { it.totalAlertCount }
+            totalAlerts in 0..5 && records.isNotEmpty()
+        }?.let { newlyUnlocked.add(it) }
+
+        // PERFECT_SCORE
+        checkAndUnlock(PERFECT_SCORE) {
+            val today = dateFormat.format(Date())
+            val record = sleepRecordRepository.getByDate(today)
+            record?.sleepScore == 100f
+        }?.let { newlyUnlocked.add(it) }
+
+        // EARLY_CHAMPION
+        checkAndUnlock(EARLY_CHAMPION) {
+            checkConsecutiveScoreDays(7, 90f, targetTimestamp)
+        }?.let { newlyUnlocked.add(it) }
+
+        return newlyUnlocked
+    }
+
+    private suspend fun checkAndUnlock(type: String, condition: suspend () -> Boolean): String? {
+        val achievement = achievementRepository.getByType(type) ?: return null
+        if (achievement.unlockedAt != null) return null
+        if (condition()) {
             achievementRepository.unlock(type, System.currentTimeMillis())
             return type
         }
         return null
+    }
+
+    private suspend fun checkConsecutiveDays(days: Int, targetTimestamp: Long): Boolean {
+        val cal = Calendar.getInstance()
+        var consecutiveCount = 0
+        for (i in 0 until days) {
+            val date = dateFormat.format(cal.time)
+            val record = sleepRecordRepository.getByDate(date)
+            if (record?.sleepTime != null && record.sleepTime <= targetTimestamp) {
+                consecutiveCount++
+            } else {
+                consecutiveCount = 0
+            }
+            cal.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        achievementRepository.updateProgress(STREAK_WEEK, consecutiveCount)
+        return consecutiveCount >= days
+    }
+
+    private suspend fun checkConsecutiveScoreDays(days: Int, minScore: Float, targetTimestamp: Long): Boolean {
+        val cal = Calendar.getInstance()
+        var consecutiveCount = 0
+        for (i in 0 until days) {
+            val date = dateFormat.format(cal.time)
+            val record = sleepRecordRepository.getByDate(date)
+            if (record?.sleepScore != null && record.sleepScore >= minScore) {
+                consecutiveCount++
+            } else {
+                consecutiveCount = 0
+            }
+            cal.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        achievementRepository.updateProgress(EARLY_CHAMPION, consecutiveCount)
+        return consecutiveCount >= days
     }
 }

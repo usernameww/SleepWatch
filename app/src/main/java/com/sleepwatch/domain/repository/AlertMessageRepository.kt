@@ -11,4 +11,5 @@ interface AlertMessageRepository {
     fun getAllMessages(): Flow<List<AlertMessage>>
     suspend fun getByLevel(level: Int): AlertMessage?
     suspend fun deleteAll()
+    suspend fun deleteById(id: Long)
 }
