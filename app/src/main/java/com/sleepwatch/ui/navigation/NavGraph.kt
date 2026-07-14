@@ -19,7 +19,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sleepwatch.ui.home.HomeScreen
 import com.sleepwatch.ui.achievements.AchievementsScreen
+import com.sleepwatch.ui.settings.AlertMessageEditScreen
 import com.sleepwatch.ui.settings.SettingsScreen
+import com.sleepwatch.ui.setup.SetupScreen
 import com.sleepwatch.ui.statistics.StatisticsScreen
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
@@ -37,25 +39,30 @@ fun NavGraph() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentDestination = navBackStackEntry?.destination
+            val showBottomBar = bottomNavItems.any { screen ->
+                currentDestination?.hierarchy?.any { it.route == screen.route } == true
+            }
 
-                bottomNavItems.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomNavItems.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                            label = { Text(screen.title) },
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -68,7 +75,18 @@ fun NavGraph() {
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Statistics.route) { StatisticsScreen() }
             composable(Screen.Achievements.route) { AchievementsScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    onNavigateToSetup = { navController.navigate("setup") },
+                    onNavigateToAlertEdit = { navController.navigate("alert_edit") }
+                )
+            }
+            composable("setup") {
+                SetupScreen(onComplete = { navController.popBackStack() })
+            }
+            composable("alert_edit") {
+                AlertMessageEditScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }

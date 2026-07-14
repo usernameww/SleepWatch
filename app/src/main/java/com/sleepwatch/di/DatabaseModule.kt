@@ -24,7 +24,9 @@ object DatabaseModule {
             context,
             SleepWatchDatabase::class.java,
             "sleepwatch.db"
-        ).build()
+        )
+            .addCallback(SleepWatchDatabase.getCallback())
+            .build()
     }
 
     @Provides
