@@ -65,6 +65,17 @@ class SetupViewModel @Inject constructor(
             ))
         }
 
+        // Full screen intent (Android 14+)
+        if (Build.VERSION.SDK_INT >= 34) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            items.add(PermissionItem(
+                name = "全屏提醒权限",
+                description = "后台弹出全屏睡眠提醒",
+                isGranted = notificationManager.canUseFullScreenIntent(),
+                action = { requestFullScreenIntentPermission() }
+            ))
+        }
+
         // Battery optimization
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val batteryIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName)
@@ -108,6 +119,16 @@ class SetupViewModel @Inject constructor(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    private fun requestFullScreenIntentPermission() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        }
     }
 }
 

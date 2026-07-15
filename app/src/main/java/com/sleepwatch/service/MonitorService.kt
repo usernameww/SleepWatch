@@ -227,7 +227,11 @@ class MonitorService : Service() {
 
     private fun sendAlertNotification(alertCount: Int) {
         val intent = Intent(this, AlertActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         }
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
@@ -239,7 +243,10 @@ class MonitorService : Service() {
             .setContentText("第 ${alertCount} 次提醒：请放下手机休息")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, true)
             .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setPriority(Notification.PRIORITY_MAX)
             .build()
 
         val manager = getSystemService(NotificationManager::class.java)

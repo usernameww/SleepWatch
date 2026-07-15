@@ -1,5 +1,7 @@
 package com.sleepwatch.ui.settings
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.DefaultData
@@ -7,7 +9,9 @@ import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.repository.AchievementRepository
 import com.sleepwatch.domain.repository.AlertMessageRepository
 import com.sleepwatch.domain.repository.SleepRecordRepository
+import com.sleepwatch.service.MonitorService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,7 +21,8 @@ class SettingsViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val sleepRecordRepository: SleepRecordRepository,
     private val alertMessageRepository: AlertMessageRepository,
-    private val achievementRepository: AchievementRepository
+    private val achievementRepository: AchievementRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val monitorStartHour = settingsDataStore.monitorStartHour
@@ -48,23 +53,37 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun setMonitorStartTime(hour: Int, minute: Int) {
-        viewModelScope.launch { settingsDataStore.setMonitorStartTime(hour, minute) }
+        viewModelScope.launch {
+            settingsDataStore.setMonitorStartTime(hour, minute)
+            restartServiceIfEnabled()
+        }
     }
 
     fun setMonitorEndTime(hour: Int, minute: Int) {
-        viewModelScope.launch { settingsDataStore.setMonitorEndTime(hour, minute) }
+        viewModelScope.launch {
+            settingsDataStore.setMonitorEndTime(hour, minute)
+            restartServiceIfEnabled()
+        }
     }
 
     fun setCheckInterval(minutes: Int) {
-        viewModelScope.launch { settingsDataStore.setCheckInterval(minutes) }
+        viewModelScope.launch {
+            settingsDataStore.setCheckInterval(minutes)
+            restartServiceIfEnabled()
+        }
     }
 
     fun setScreenOffThreshold(count: Int) {
-        viewModelScope.launch { settingsDataStore.setScreenOffThreshold(count) }
+        viewModelScope.launch {
+            settingsDataStore.setScreenOffThreshold(count)
+            restartServiceIfEnabled()
+        }
     }
 
     fun setTargetBedtime(hour: Int, minute: Int) {
-        viewModelScope.launch { settingsDataStore.setTargetBedtime(hour, minute) }
+        viewModelScope.launch {
+            settingsDataStore.setTargetBedtime(hour, minute)
+        }
     }
 
     fun setSoundEnabled(enabled: Boolean) {
@@ -76,7 +95,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setServiceEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsDataStore.setServiceEnabled(enabled) }
+        viewModelScope.launch {
+            settingsDataStore.setServiceEnabled(enabled)
+            if (enabled) {
+                val intent = Intent(context, MonitorService::class.java).apply {
+                    action = MonitorService.ACTION_START
+                }
+                context.startForegroundService(intent)
+            } else {
+                val intent = Intent(context, MonitorService::class.java).apply {
+                    action = MonitorService.ACTION_STOP
+                }
+                context.startForegroundService(intent)
+            }
+        }
     }
 
     fun clearAllData() {
@@ -86,6 +118,23 @@ class SettingsViewModel @Inject constructor(
             alertMessageRepository.insertAll(DefaultData.alertMessages)
             achievementRepository.deleteAll()
             settingsDataStore.clearSkippedAndEmergency()
+        }
+    }
+
+    private suspend fun restartServiceIfEnabled() {
+        val enabled = settingsDataStore.serviceEnabled.first()
+        if (enabled) {
+            // Stop then restart to apply new settings
+            val stopIntent = Intent(context, MonitorService::class.java).apply {
+                action = MonitorService.ACTION_STOP
+            }
+            context.startService(stopIntent)
+            // Small delay to ensure stop completes
+            kotlinx.coroutines.delay(200)
+            val startIntent = Intent(context, MonitorService::class.java).apply {
+                action = MonitorService.ACTION_START
+            }
+            context.startForegroundService(startIntent)
         }
     }
 }
