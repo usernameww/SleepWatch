@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.RingtoneManager
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import com.sleepwatch.data.datastore.SettingsDataStore
@@ -77,6 +78,12 @@ class MonitorService : Service() {
             alarmScheduler.scheduleCheck(startHour, startMinute, interval)
             registerScreenReceiver()
             startPeriodicCheck()
+
+            // Check if we're already past monitoring start time and phone is on
+            if (isPastMonitoringStart(startHour, startMinute) && isPhoneScreenOn()) {
+                stateMachine.onScreenOn() // -> ALERTING
+                triggerAlert()
+            }
         }
     }
 
@@ -91,51 +98,22 @@ class MonitorService : Service() {
 
     private fun handleScreenOn() {
         scope.launch {
-            val today = getTodayDateString()
-            val skipped = settingsDataStore.skippedDate.first()
-            val emergency = settingsDataStore.emergencyDate.first()
-
-            if (skipped == today || emergency == today) return@launch
+            if (isSkippedOrEmergency()) return@launch
 
             val newState = stateMachine.onScreenOn()
             if (newState == MonitorState.ALERTING) {
-                val monitorStartHour = settingsDataStore.monitorStartHour.first()
-                val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
-                val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
-                saveSleepRecordUseCase.recordScreenOnCheck(record)
-
-                if (record.firstAlertTime == null) {
-                    val updatedRecord = saveSleepRecordUseCase.recordAlert(record)
-                    sendAlertNotification(updatedRecord.totalAlertCount)
-                    playAlertEffects()
-                    launchAlertActivity()
-                }
+                triggerAlert()
             }
         }
     }
 
     private fun handleScreenOff() {
         scope.launch {
-            val today = getTodayDateString()
-            val skipped = settingsDataStore.skippedDate.first()
-            val emergency = settingsDataStore.emergencyDate.first()
-
-            if (skipped == today || emergency == today) return@launch
+            if (isSkippedOrEmergency()) return@launch
 
             val newState = stateMachine.onScreenOff()
             if (newState == MonitorState.SLEEP_DETECTED) {
-                val monitorStartHour = settingsDataStore.monitorStartHour.first()
-                val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
-                val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
-                saveSleepRecordUseCase.recordSleepTime(record)
-
-                // Re-read emergency to avoid stale value
-                val currentEmergency = settingsDataStore.emergencyDate.first()
-                if (currentEmergency == today) {
-                    saveSleepRecordUseCase.recordEmergency(record)
-                }
-
-                stateMachine.reset()
+                recordSleepDetected()
             }
         }
     }
@@ -143,23 +121,75 @@ class MonitorService : Service() {
     private fun startPeriodicCheck() {
         checkJob = scope.launch {
             while (isActive) {
-                delay(60_000)
-                val today = getTodayDateString()
-                val skipped = settingsDataStore.skippedDate.first()
-                val emergency = settingsDataStore.emergencyDate.first()
-                if (skipped != today && emergency != today) {
-                    if (stateMachine.state == MonitorState.ALERTING) {
-                        val monitorStartHour = settingsDataStore.monitorStartHour.first()
-                        val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
-                        val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
-                        saveSleepRecordUseCase.recordAlert(record)
-                        sendAlertNotification(record.totalAlertCount)
-                        playAlertEffects()
-                        launchAlertActivity()
+                delay(60_000) // Check every 60 seconds
+                if (isSkippedOrEmergency()) continue
+
+                val startHour = settingsDataStore.monitorStartHour.first()
+                val startMinute = settingsDataStore.monitorStartMinute.first()
+
+                when {
+                    // If we're past monitoring time and in MONITORING state, check if phone is on
+                    stateMachine.state == MonitorState.MONITORING && isPastMonitoringStart(startHour, startMinute) -> {
+                        if (isPhoneScreenOn()) {
+                            stateMachine.onScreenOn() // -> ALERTING
+                            triggerAlert()
+                        }
+                    }
+                    // If we're in ALERTING, keep triggering alerts
+                    stateMachine.state == MonitorState.ALERTING -> {
+                        triggerAlert()
                     }
                 }
             }
         }
+    }
+
+    private suspend fun triggerAlert() {
+        val monitorStartHour = settingsDataStore.monitorStartHour.first()
+        val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
+        val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
+        saveSleepRecordUseCase.recordAlert(record)
+        sendAlertNotification(record.totalAlertCount)
+        playAlertEffects()
+        launchAlertActivity()
+    }
+
+    private suspend fun recordSleepDetected() {
+        val monitorStartHour = settingsDataStore.monitorStartHour.first()
+        val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
+        val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
+        saveSleepRecordUseCase.recordSleepTime(record)
+
+        // Re-read emergency to avoid stale value
+        val today = getTodayDateString()
+        val currentEmergency = settingsDataStore.emergencyDate.first()
+        if (currentEmergency == today) {
+            saveSleepRecordUseCase.recordEmergency(record)
+        }
+
+        stateMachine.reset()
+    }
+
+    private fun isPastMonitoringStart(startHour: Int, startMinute: Int): Boolean {
+        val now = Calendar.getInstance()
+        val monitorStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, startHour)
+            set(Calendar.MINUTE, startMinute)
+            set(Calendar.SECOND, 0)
+        }
+        return now.after(monitorStart)
+    }
+
+    private fun isPhoneScreenOn(): Boolean {
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        return powerManager.isInteractive
+    }
+
+    private suspend fun isSkippedOrEmergency(): Boolean {
+        val today = getTodayDateString()
+        val skipped = settingsDataStore.skippedDate.first()
+        val emergency = settingsDataStore.emergencyDate.first()
+        return skipped == today || emergency == today
     }
 
     private fun sendAlertNotification(alertCount: Int) {

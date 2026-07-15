@@ -1,5 +1,9 @@
 package com.sleepwatch.ui.setup
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -9,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -20,10 +25,26 @@ fun SetupScreen(
     viewModel: SetupViewModel = hiltViewModel()
 ) {
     val permissions by viewModel.permissions.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
+    val notificationTrigger by viewModel.notificationRequestTrigger.collectAsState()
+
+    // Permission launcher for POST_NOTIFICATIONS
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.resetNotificationTrigger()
+        viewModel.checkPermissions()
+    }
 
     LaunchedEffect(Unit) {
         viewModel.checkPermissions()
+    }
+
+    // Trigger notification permission request
+    LaunchedEffect(notificationTrigger) {
+        if (notificationTrigger && Build.VERSION.SDK_INT >= 33) {
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     Scaffold(
@@ -63,11 +84,26 @@ fun SetupScreen(
                     permission = permission,
                     onRequest = {
                         permission.action()
-                        // Re-check after returning
-                        viewModel.checkPermissions()
+                        // Re-check after returning (for non-notification permissions)
+                        if (permission.name != "通知权限") {
+                            viewModel.checkPermissions()
+                        }
                     }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Re-check button
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { viewModel.checkPermissions() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("刷新权限状态")
+                }
             }
 
             item {
