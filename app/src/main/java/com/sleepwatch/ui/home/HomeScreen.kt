@@ -28,8 +28,8 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         }
     }
 
-    val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val timeText by remember { derivedStateOf { SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(currentTime)) } }
+    val dateText by remember { derivedStateOf { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(currentTime)) } }
 
     Column(
         modifier = Modifier
@@ -40,13 +40,13 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = timeFormat.format(Date(currentTime)),
+            text = timeText,
             fontSize = 56.sp,
             fontWeight = FontWeight.Light
         )
 
         Text(
-            text = dateFormat.format(Date(currentTime)),
+            text = dateText,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

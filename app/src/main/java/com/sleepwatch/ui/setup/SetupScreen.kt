@@ -20,6 +20,7 @@ fun SetupScreen(
     viewModel: SetupViewModel = hiltViewModel()
 ) {
     val permissions by viewModel.permissions.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.checkPermissions()
@@ -67,6 +68,54 @@ fun SetupScreen(
                     }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            item {
+                if (com.sleepwatch.util.HyperOSHelper.isHyperOS()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "HyperOS 特殊设置",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = com.sleepwatch.util.HyperOSHelper.getAutoStartGuideText(),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = com.sleepwatch.util.HyperOSHelper.getBackgroundGuideText(),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    com.sleepwatch.util.HyperOSHelper.openAutoStartSettings(context)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("前往自启动设置")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    com.sleepwatch.util.HyperOSHelper.openBatterySettings(context)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("前往电池设置")
+                            }
+                        }
+                    }
+                }
             }
         }
     }

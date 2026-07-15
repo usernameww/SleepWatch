@@ -10,11 +10,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sleepwatch.data.db.entity.SleepRecord
 import java.text.SimpleDateFormat
@@ -43,7 +41,6 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
     ) {
         TopAppBar(title = { Text("统计") })
 
-        // Period selector
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -67,33 +64,19 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Summary cards
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            StatCard(
-                modifier = Modifier.weight(1f),
-                title = "平均入睡",
-                value = viewModel.averageSleepTime(currentRecords)
-            )
-            StatCard(
-                modifier = Modifier.weight(1f),
-                title = "平均评分",
-                value = viewModel.averageScore(currentRecords)
-            )
-            StatCard(
-                modifier = Modifier.weight(1f),
-                title = "达标天数",
-                value = "${viewModel.goalAchievedCount(currentRecords, targetHour, targetMinute)}"
-            )
+            StatCard(modifier = Modifier.weight(1f), title = "平均入睡", value = viewModel.averageSleepTime(currentRecords))
+            StatCard(modifier = Modifier.weight(1f), title = "平均评分", value = viewModel.averageScore(currentRecords))
+            StatCard(modifier = Modifier.weight(1f), title = "达标天数", value = "${viewModel.goalAchievedCount(currentRecords, targetHour, targetMinute)}")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Chart area
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -103,13 +86,12 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
                 Text(
                     text = when (period) {
                         StatsPeriod.WEEK -> "本周入睡时间"
-                        StatsPeriod.MONTH -> "本月入睡时间"
-                        StatsPeriod.YEAR -> "本年月均入睡时间"
+                        StatsPeriod.MONTH -> "本月睡眠评分"
+                        StatsPeriod.YEAR -> "本年月均评分"
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (currentRecords.isEmpty()) {
@@ -133,7 +115,6 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Detail list
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,7 +127,6 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-
                 if (currentRecords.isEmpty()) {
                     Text(
                         text = "暂无记录",
@@ -173,31 +153,19 @@ private fun StatCard(modifier: Modifier, title: String, value: String) {
             modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
 private fun WeekChart(records: List<SleepRecord>, targetHour: Int, targetMinute: Int) {
-    val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
     val dayFormat = SimpleDateFormat("E", Locale.getDefault())
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-
     val chartHeight = 180.dp
-    val maxValue = 24 * 60 // minutes in a day
+    val maxValue = 24 * 60
 
     Column {
-        // Simple bar chart
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -231,34 +199,20 @@ private fun WeekChart(records: List<SleepRecord>, targetHour: Int, targetMinute:
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = dayFormat.format(Date(record.monitorStartTime)),
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Text(text = dayFormat.format(Date(record.monitorStartTime)), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
-
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Legend
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-            )
+            Box(modifier = Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
             Text(" 早于目标", style = MaterialTheme.typography.labelSmall)
             Spacer(modifier = Modifier.width(16.dp))
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(2.dp))
-            )
+            Box(modifier = Modifier.size(12.dp).background(MaterialTheme.colorScheme.error, RoundedCornerShape(2.dp)))
             Text(" 晚于目标", style = MaterialTheme.typography.labelSmall)
         }
     }
@@ -266,7 +220,6 @@ private fun WeekChart(records: List<SleepRecord>, targetHour: Int, targetMinute:
 
 @Composable
 private fun MonthChart(records: List<SleepRecord>) {
-    // Calendar heatmap
     val daysInMonth = Calendar.getInstance().getActualMaximum(Calendar.DAY_OF_MONTH)
     val today = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
     val recordMap = records.associateBy {
@@ -279,19 +232,13 @@ private fun MonthChart(records: List<SleepRecord>) {
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        // Grid
         for (week in 0..5) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 for (day in 1..7) {
                     val dayNum = week * 7 + day
                     if (dayNum in 1..daysInMonth) {
                         val key = String.format("%02d", dayNum)
-                        val record = recordMap[key]
-                        val score = record?.sleepScore
+                        val score = recordMap[key]?.sleepScore
                         val color = when {
                             score == null -> MaterialTheme.colorScheme.surfaceVariant
                             score >= 80 -> MaterialTheme.colorScheme.primary
@@ -309,7 +256,7 @@ private fun MonthChart(records: List<SleepRecord>) {
                             Text(
                                 text = "$dayNum",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (dayNum <= today) Color.White
+                                color = if (dayNum <= today) androidx.compose.ui.graphics.Color.White
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -319,40 +266,13 @@ private fun MonthChart(records: List<SleepRecord>) {
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            LegendItem(MaterialTheme.colorScheme.primary, "≥80分")
-            Spacer(modifier = Modifier.width(12.dp))
-            LegendItem(MaterialTheme.colorScheme.tertiary, "60-79分")
-            Spacer(modifier = Modifier.width(12.dp))
-            LegendItem(MaterialTheme.colorScheme.error, "<60分")
-        }
-    }
-}
-
-@Composable
-private fun LegendItem(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(12.dp)
-                .background(color, RoundedCornerShape(2.dp))
-        )
-        Text(" $label", style = MaterialTheme.typography.labelSmall)
     }
 }
 
 @Composable
 private fun YearChart(records: List<SleepRecord>) {
     val monthFormat = SimpleDateFormat("MM", Locale.getDefault())
-    val monthRecords = records.groupBy {
-        monthFormat.format(Date(it.monitorStartTime))
-    }.toSortedMap()
+    val monthRecords = records.groupBy { monthFormat.format(Date(it.monitorStartTime)) }.toSortedMap()
 
     Column {
         Text(
@@ -360,8 +280,6 @@ private fun YearChart(records: List<SleepRecord>) {
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        // Simple month bars
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -372,7 +290,6 @@ private fun YearChart(records: List<SleepRecord>) {
             monthRecords.forEach { (month, recs) ->
                 val avgScore = recs.mapNotNull { it.sleepScore }.average()
                 val barHeight = if (avgScore.isNaN()) 0.dp else (avgScore / 100 * 140).dp
-
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
@@ -385,10 +302,7 @@ private fun YearChart(records: List<SleepRecord>) {
                             .background(MaterialTheme.colorScheme.primary)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${month}月",
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Text(text = "${month}月", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -407,17 +321,10 @@ private fun RecordRow(record: SleepRecord) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = dateFormat.format(Date(record.monitorStartTime)),
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Text(text = dateFormat.format(Date(record.monitorStartTime)), style = MaterialTheme.typography.bodyMedium)
         record.sleepTime?.let {
-            Text(
-                text = timeFormat.format(Date(it)),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Text(text = timeFormat.format(Date(it)), style = MaterialTheme.typography.bodyMedium)
         } ?: Text("--:--", style = MaterialTheme.typography.bodyMedium)
-
         record.sleepScore?.let {
             val color = when {
                 it >= 80 -> MaterialTheme.colorScheme.primary
