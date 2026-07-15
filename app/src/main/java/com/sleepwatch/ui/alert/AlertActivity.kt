@@ -209,57 +209,28 @@ fun AlertScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            OutlinedButton(
+                onClick = {
+                    viewModel.skipTonight()
+                    onDismiss()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = btnShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFFF0ECE3).copy(alpha = 0.7f)
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.1f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    )
+                )
             ) {
-                OutlinedButton(
-                    onClick = {
-                        viewModel.skipTonight()
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = btnShape,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFF0ECE3).copy(alpha = 0.7f)
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.1f),
-                                Color.White.copy(alpha = 0.05f)
-                            )
-                        )
-                    )
-                ) {
-                    Text("今晚不再提醒", style = MaterialTheme.typography.labelMedium)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        viewModel.markEmergency()
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = btnShape,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFFF6B6B).copy(alpha = 0.8f)
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFFFF6B6B).copy(alpha = 0.2f),
-                                Color(0xFFFF6B6B).copy(alpha = 0.05f)
-                            )
-                        )
-                    )
-                ) {
-                    Text("有紧急事项", style = MaterialTheme.typography.labelMedium)
-                }
+                Text("今晚不再提醒", style = MaterialTheme.typography.labelMedium)
             }
         }
     }

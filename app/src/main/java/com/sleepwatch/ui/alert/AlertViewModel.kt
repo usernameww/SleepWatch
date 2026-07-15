@@ -36,11 +36,4 @@ class AlertViewModel @Inject constructor(
             settingsDataStore.setSkippedDate(today)
         }
     }
-
-    fun markEmergency() {
-        viewModelScope.launch {
-            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            settingsDataStore.setEmergencyDate(today)
-        }
-    }
 }
