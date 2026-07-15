@@ -49,7 +49,7 @@ fun SettingsScreen(
         Text(
             text = "设置",
             style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
+            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
         )
 
         SettingsSection(title = "监测服务") {

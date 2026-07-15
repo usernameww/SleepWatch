@@ -80,7 +80,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Clock - single line
         Text(

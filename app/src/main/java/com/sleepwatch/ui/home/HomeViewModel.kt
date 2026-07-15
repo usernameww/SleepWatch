@@ -66,12 +66,12 @@ class HomeViewModel @Inject constructor(
                 val intent = Intent(context, MonitorService::class.java).apply {
                     action = MonitorService.ACTION_START
                 }
-                context.startService(intent)
+                context.startForegroundService(intent)
             } else {
                 val intent = Intent(context, MonitorService::class.java).apply {
                     action = MonitorService.ACTION_STOP
                 }
-                context.startService(intent)
+                context.startForegroundService(intent)
             }
         }
     }

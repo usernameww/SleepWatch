@@ -34,6 +34,7 @@ class MonitorService : Service() {
     private val stateMachine = MonitorStateMachine()
     private var screenReceiver: ScreenReceiver? = null
     private var checkJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     companion object {
         const val CHANNEL_ID = "monitor_channel"
@@ -67,6 +68,7 @@ class MonitorService : Service() {
 
     private fun startMonitoring() {
         startForeground(NOTIFICATION_ID, createNotification())
+        acquireWakeLock()
 
         scope.launch {
             val threshold = settingsDataStore.screenOffThreshold.first()
@@ -94,6 +96,7 @@ class MonitorService : Service() {
         checkJob?.cancel()
         unregisterScreenReceiver()
         stateMachine.reset()
+        releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -264,10 +267,18 @@ class MonitorService : Service() {
     }
 
     private fun launchAlertActivity() {
-        val intent = Intent(this, AlertActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        try {
+            val intent = Intent(this, AlertActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Fallback: notification already sent by triggerAlert()
         }
-        startActivity(intent)
     }
 
     private fun registerScreenReceiver() {
@@ -324,8 +335,33 @@ class MonitorService : Service() {
         return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     }
 
+    private fun acquireWakeLock() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SleepWatch::Monitor")
+        wakeLock?.acquire(10 * 60 * 1000L)
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        scope.launch {
+            val enabled = settingsDataStore.serviceEnabled.first()
+            if (enabled) {
+                val restartIntent = Intent(this@MonitorService, MonitorService::class.java).apply {
+                    action = ACTION_START
+                }
+                startService(restartIntent)
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        releaseWakeLock()
         scope.cancel()
         unregisterScreenReceiver()
     }
