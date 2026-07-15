@@ -24,6 +24,10 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val monitorStartMinute = settingsDataStore.monitorStartMinute
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val monitorEndHour = settingsDataStore.monitorEndHour
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 5)
+    val monitorEndMinute = settingsDataStore.monitorEndMinute
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val checkInterval = settingsDataStore.checkIntervalMinutes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 10)
     val screenOffThreshold = settingsDataStore.screenOffThreshold
@@ -45,6 +49,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setMonitorStartTime(hour: Int, minute: Int) {
         viewModelScope.launch { settingsDataStore.setMonitorStartTime(hour, minute) }
+    }
+
+    fun setMonitorEndTime(hour: Int, minute: Int) {
+        viewModelScope.launch { settingsDataStore.setMonitorEndTime(hour, minute) }
     }
 
     fun setCheckInterval(minutes: Int) {

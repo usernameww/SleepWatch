@@ -19,6 +19,8 @@ class SettingsDataStore @Inject constructor(
     private object Keys {
         val MONITOR_START_HOUR = intPreferencesKey("monitor_start_hour")
         val MONITOR_START_MINUTE = intPreferencesKey("monitor_start_minute")
+        val MONITOR_END_HOUR = intPreferencesKey("monitor_end_hour")
+        val MONITOR_END_MINUTE = intPreferencesKey("monitor_end_minute")
         val CHECK_INTERVAL_MINUTES = intPreferencesKey("check_interval_minutes")
         val SCREEN_OFF_THRESHOLD = intPreferencesKey("screen_off_threshold")
         val TARGET_BEDTIME_HOUR = intPreferencesKey("target_bedtime_hour")
@@ -32,6 +34,8 @@ class SettingsDataStore @Inject constructor(
 
     val monitorStartHour: Flow<Int> = context.dataStore.data.map { it[Keys.MONITOR_START_HOUR] ?: 0 }
     val monitorStartMinute: Flow<Int> = context.dataStore.data.map { it[Keys.MONITOR_START_MINUTE] ?: 0 }
+    val monitorEndHour: Flow<Int> = context.dataStore.data.map { it[Keys.MONITOR_END_HOUR] ?: 5 }
+    val monitorEndMinute: Flow<Int> = context.dataStore.data.map { it[Keys.MONITOR_END_MINUTE] ?: 0 }
     val checkIntervalMinutes: Flow<Int> = context.dataStore.data.map { it[Keys.CHECK_INTERVAL_MINUTES] ?: 10 }
     val screenOffThreshold: Flow<Int> = context.dataStore.data.map { it[Keys.SCREEN_OFF_THRESHOLD] ?: 3 }
     val targetBedtimeHour: Flow<Int> = context.dataStore.data.map { it[Keys.TARGET_BEDTIME_HOUR] ?: 23 }
@@ -46,6 +50,13 @@ class SettingsDataStore @Inject constructor(
         context.dataStore.edit {
             it[Keys.MONITOR_START_HOUR] = hour
             it[Keys.MONITOR_START_MINUTE] = minute
+        }
+    }
+
+    suspend fun setMonitorEndTime(hour: Int, minute: Int) {
+        context.dataStore.edit {
+            it[Keys.MONITOR_END_HOUR] = hour
+            it[Keys.MONITOR_END_MINUTE] = minute
         }
     }
 

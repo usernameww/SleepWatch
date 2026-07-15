@@ -11,6 +11,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
+data class AlertInfo(
+    val title: String,
+    val content: String,
+    val healthTip: String,
+    val level: Int,
+    val totalLevels: Int
+)
+
 @HiltViewModel
 class AlertViewModel @Inject constructor(
     private val getAlertMessagesUseCase: GetAlertMessagesUseCase,
@@ -22,12 +30,21 @@ class AlertViewModel @Inject constructor(
 
     private var currentLevel = 0
 
-    fun getNextMessage(): String {
+    fun getNextMessage(): AlertInfo {
         val allMessages = messages.value
-        if (allMessages.isEmpty()) return "该睡觉了！"
-        currentLevel = (currentLevel % allMessages.size) + 1
-        if (currentLevel > allMessages.size) currentLevel = 1
-        return allMessages.getOrNull(currentLevel - 1)?.content ?: "该睡觉了！"
+        if (allMessages.isEmpty()) {
+            return AlertInfo("该睡觉了", "请放下手机休息", "", 1, 1)
+        }
+        currentLevel = (currentLevel % allMessages.size)
+        val msg = allMessages[currentLevel]
+        currentLevel++
+        return AlertInfo(
+            title = msg.title,
+            content = msg.content,
+            healthTip = msg.healthTip,
+            level = msg.level,
+            totalLevels = allMessages.size
+        )
     }
 
     fun skipTonight() {

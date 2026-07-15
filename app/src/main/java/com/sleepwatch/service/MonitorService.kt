@@ -124,6 +124,16 @@ class MonitorService : Service() {
                 delay(60_000) // Check every 60 seconds
                 if (isSkippedOrEmergency()) continue
 
+                val endHour = settingsDataStore.monitorEndHour.first()
+                val endMinute = settingsDataStore.monitorEndMinute.first()
+                if (isPastEndTime(endHour, endMinute)) {
+                    // End monitoring for tonight
+                    if (stateMachine.state == MonitorState.MONITORING || stateMachine.state == MonitorState.ALERTING) {
+                        recordSleepDetected()
+                    }
+                    continue
+                }
+
                 val startHour = settingsDataStore.monitorStartHour.first()
                 val startMinute = settingsDataStore.monitorStartMinute.first()
 
@@ -178,6 +188,16 @@ class MonitorService : Service() {
             set(Calendar.SECOND, 0)
         }
         return now.after(monitorStart)
+    }
+
+    private fun isPastEndTime(endHour: Int, endMinute: Int): Boolean {
+        val now = Calendar.getInstance()
+        val endTime = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, endHour)
+            set(Calendar.MINUTE, endMinute)
+            set(Calendar.SECOND, 0)
+        }
+        return now.after(endTime)
     }
 
     private fun isPhoneScreenOn(): Boolean {

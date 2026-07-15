@@ -38,6 +38,12 @@ class HomeViewModel @Inject constructor(
     ) { hour, minute -> Pair(hour, minute) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(0, 0))
 
+    val monitorEndTime: StateFlow<Pair<Int, Int>> = combine(
+        settingsDataStore.monitorEndHour,
+        settingsDataStore.monitorEndMinute
+    ) { hour, minute -> Pair(hour, minute) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(5, 0))
+
     fun isTonightSkipped(): Boolean {
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         return skippedDate.value == today

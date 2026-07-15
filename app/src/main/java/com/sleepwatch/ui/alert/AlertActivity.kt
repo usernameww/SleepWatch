@@ -47,12 +47,10 @@ fun AlertScreen(
     onDismiss: () -> Unit,
     viewModel: AlertViewModel = hiltViewModel()
 ) {
-    val message = remember { mutableStateOf("") }
-    var startTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val alertInfo = remember { mutableStateOf<AlertInfo?>(null) }
 
     LaunchedEffect(Unit) {
-        message.value = viewModel.getNextMessage()
-        startTime = System.currentTimeMillis()
+        alertInfo.value = viewModel.getNextMessage()
     }
 
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -64,9 +62,9 @@ fun AlertScreen(
     }
 
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val elapsed = (currentTime - startTime) / 60000
+    val info = alertInfo.value
 
-    // Pulse animation for the icon
+    // Pulse animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -108,10 +106,28 @@ fun AlertScreen(
                 )
         )
 
+        // Skip button - TOP LEFT
+        TextButton(
+            onClick = {
+                viewModel.skipTonight()
+                onDismiss()
+            },
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 48.dp)
+        ) {
+            Text(
+                text = "今晚不再提醒",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color(0xFF8E8E93)
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp),
+                .padding(horizontal = 32.dp)
+                .padding(top = 100.dp, bottom = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -133,19 +149,9 @@ fun AlertScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "该睡觉了",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 2.sp
-                ),
-                color = Color(0xFFF0ECE3)
-            )
-
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Time
             Text(
                 text = timeFormat.format(Date(currentTime)),
                 style = MaterialTheme.typography.displayMedium.copy(
@@ -155,39 +161,77 @@ fun AlertScreen(
                 color = Color(0xFFF0ECE3)
             )
 
-            if (elapsed > 0) {
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Message title with level indicator
+            if (info != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    // Level dots
+                    repeat(info.totalLevels) { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .padding(horizontal = 2.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (index < info.level)
+                                        Color(0xFF7EC8A0)
+                                    else
+                                        Color.White.copy(alpha = 0.15f)
+                                )
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
-                    text = "已超时 ${elapsed} 分钟",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF8E8E93)
+                    text = info.title,
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = 1.sp
+                    ),
+                    color = Color(0xFF7EC8A0)
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Message content card
+                val msgShape = RoundedCornerShape(20.dp)
+                Text(
+                    text = info.content,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        lineHeight = 28.sp
+                    ),
+                    color = Color(0xFFF0ECE3).copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(msgShape)
+                        .background(Color.White.copy(alpha = 0.04f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.06f), msgShape)
+                        .padding(horizontal = 24.dp, vertical = 20.dp)
+                )
+
+                // Health tip
+                if (info.healthTip.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = info.healthTip,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF8E8E93),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
-            // Message card
-            val msgShape = RoundedCornerShape(20.dp)
-            Text(
-                text = message.value,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    lineHeight = 28.sp
-                ),
-                color = Color(0xFFF0ECE3).copy(alpha = 0.8f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(msgShape)
-                    .background(Color.White.copy(alpha = 0.04f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.06f), msgShape)
-                    .padding(horizontal = 24.dp, vertical = 20.dp)
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Buttons
+            // Dismiss button - BOTTOM CENTER
             val btnShape = RoundedCornerShape(16.dp)
-
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
@@ -205,32 +249,6 @@ fun AlertScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = {
-                    viewModel.skipTonight()
-                    onDismiss()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = btnShape,
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Color(0xFFF0ECE3).copy(alpha = 0.7f)
-                ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.1f),
-                            Color.White.copy(alpha = 0.05f)
-                        )
-                    )
-                )
-            ) {
-                Text("今晚不再提醒", style = MaterialTheme.typography.labelMedium)
             }
         }
     }

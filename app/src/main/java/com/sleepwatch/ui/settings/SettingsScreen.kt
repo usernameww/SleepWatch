@@ -23,6 +23,8 @@ fun SettingsScreen(
 ) {
     val monitorStartHour by viewModel.monitorStartHour.collectAsState()
     val monitorStartMinute by viewModel.monitorStartMinute.collectAsState()
+    val monitorEndHour by viewModel.monitorEndHour.collectAsState()
+    val monitorEndMinute by viewModel.monitorEndMinute.collectAsState()
     val checkInterval by viewModel.checkInterval.collectAsState()
     val screenOffThreshold by viewModel.screenOffThreshold.collectAsState()
     val targetHour by viewModel.targetBedtimeHour.collectAsState()
@@ -33,6 +35,7 @@ fun SettingsScreen(
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showMonitorTimePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
     var showBedtimePicker by remember { mutableStateOf(false) }
     var showIntervalDialog by remember { mutableStateOf(false) }
     var showThresholdDialog by remember { mutableStateOf(false) }
@@ -59,6 +62,12 @@ fun SettingsScreen(
                 subtitle = String.format("%02d:%02d", monitorStartHour, monitorStartMinute),
                 icon = Icons.Default.Schedule,
                 onClick = { showMonitorTimePicker = true }
+            )
+            SettingsItem(
+                title = "监测结束时间",
+                subtitle = String.format("%02d:%02d", monitorEndHour, monitorEndMinute),
+                icon = Icons.Default.Schedule,
+                onClick = { showEndTimePicker = true }
             )
             SettingsItem(
                 title = "检测间隔",
@@ -146,6 +155,16 @@ fun SettingsScreen(
             initialMinute = monitorStartMinute,
             onConfirm = { h, m -> viewModel.setMonitorStartTime(h, m); showMonitorTimePicker = false },
             onDismiss = { showMonitorTimePicker = false }
+        )
+    }
+
+    if (showEndTimePicker) {
+        TimePickerDialog(
+            title = "监测结束时间",
+            initialHour = monitorEndHour,
+            initialMinute = monitorEndMinute,
+            onConfirm = { h, m -> viewModel.setMonitorEndTime(h, m); showEndTimePicker = false },
+            onDismiss = { showEndTimePicker = false }
         )
     }
 

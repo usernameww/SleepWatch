@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.entity.SleepRecord
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.usecase.GetSleepRecordsUseCase
+import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -16,8 +18,17 @@ enum class StatsPeriod { WEEK, MONTH, YEAR }
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
     private val getSleepRecordsUseCase: GetSleepRecordsUseCase,
+    private val saveSleepRecordUseCase: SaveSleepRecordUseCase,
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            val startHour = settingsDataStore.monitorStartHour.first()
+            val startMinute = settingsDataStore.monitorStartMinute.first()
+            saveSleepRecordUseCase.getOrCreateTodayRecord(startHour, startMinute)
+        }
+    }
 
     private val _period = MutableStateFlow(StatsPeriod.WEEK)
     val period: StateFlow<StatsPeriod> = _period

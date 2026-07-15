@@ -40,6 +40,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     val latestRecord by viewModel.latestRecord.collectAsState()
     val serviceEnabled by viewModel.serviceEnabled.collectAsState()
     val monitorStart by viewModel.monitorStartTime.collectAsState()
+    val monitorEnd by viewModel.monitorEndTime.collectAsState()
 
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -136,6 +137,8 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             serviceEnabled = serviceEnabled,
             monitorStartHour = monitorStart.first,
             monitorStartMinute = monitorStart.second,
+            monitorEndHour = monitorEnd.first,
+            monitorEndMinute = monitorEnd.second,
             isSkipped = viewModel.isTonightSkipped(),
             isEmergency = viewModel.isTonightEmergency()
         )
@@ -258,6 +261,8 @@ private fun StatusCard(
     serviceEnabled: Boolean,
     monitorStartHour: Int,
     monitorStartMinute: Int,
+    monitorEndHour: Int,
+    monitorEndMinute: Int,
     isSkipped: Boolean,
     isEmergency: Boolean
 ) {
@@ -291,7 +296,7 @@ private fun StatusCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "开始时间 ${String.format("%02d:%02d", monitorStartHour, monitorStartMinute)}",
+                    text = "${String.format("%02d:%02d", monitorStartHour, monitorStartMinute)} - ${String.format("%02d:%02d", monitorEndHour, monitorEndMinute)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
