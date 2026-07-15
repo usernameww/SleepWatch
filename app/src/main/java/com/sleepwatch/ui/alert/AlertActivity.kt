@@ -1,5 +1,6 @@
 package com.sleepwatch.ui.alert
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,7 +38,14 @@ class AlertActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             SleepWatchTheme {
-                AlertScreen(onDismiss = { finish() })
+                AlertScreen(onDismiss = {
+                    // Notify MonitorService that alert was dismissed
+                    val intent = Intent(this, com.sleepwatch.service.MonitorService::class.java).apply {
+                        action = com.sleepwatch.service.MonitorService.ACTION_ALERT_DISMISSED
+                    }
+                    startService(intent)
+                    finish()
+                })
             }
         }
     }

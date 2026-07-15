@@ -1,12 +1,16 @@
 package com.sleepwatch.ui.home
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.entity.SleepRecord
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.usecase.GetSleepRecordsUseCase
 import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
+import com.sleepwatch.service.MonitorService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -17,7 +21,8 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val getSleepRecordsUseCase: GetSleepRecordsUseCase,
     private val saveSleepRecordUseCase: SaveSleepRecordUseCase,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val latestRecord: StateFlow<SleepRecord?> = getSleepRecordsUseCase.getLatestRecord()
@@ -57,6 +62,17 @@ class HomeViewModel @Inject constructor(
     fun toggleService(enabled: Boolean) {
         viewModelScope.launch {
             settingsDataStore.setServiceEnabled(enabled)
+            if (enabled) {
+                val intent = Intent(context, MonitorService::class.java).apply {
+                    action = MonitorService.ACTION_START
+                }
+                context.startService(intent)
+            } else {
+                val intent = Intent(context, MonitorService::class.java).apply {
+                    action = MonitorService.ACTION_STOP
+                }
+                context.startService(intent)
+            }
         }
     }
 }

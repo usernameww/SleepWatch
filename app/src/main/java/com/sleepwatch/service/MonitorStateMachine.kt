@@ -59,6 +59,13 @@ class MonitorStateMachine {
         }
     }
 
+    fun backToMonitoring() {
+        if (state == MonitorState.ALERTING) {
+            state = MonitorState.MONITORING
+            consecutiveScreenOffCount = 0
+        }
+    }
+
     fun reset() {
         state = MonitorState.IDLE
         consecutiveScreenOffCount = 0

@@ -44,6 +44,7 @@ class MonitorService : Service() {
         const val ACTION_STOP = "com.sleepwatch.STOP"
         const val ACTION_SCREEN_ON = "com.sleepwatch.SCREEN_ON"
         const val ACTION_SCREEN_OFF = "com.sleepwatch.SCREEN_OFF"
+        const val ACTION_ALERT_DISMISSED = "com.sleepwatch.ALERT_DISMISSED"
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -59,6 +60,7 @@ class MonitorService : Service() {
             ACTION_STOP -> stopMonitoring()
             ACTION_SCREEN_ON -> handleScreenOn()
             ACTION_SCREEN_OFF -> handleScreenOff()
+            ACTION_ALERT_DISMISSED -> handleAlertDismissed()
         }
         return START_STICKY
     }
@@ -115,6 +117,14 @@ class MonitorService : Service() {
             if (newState == MonitorState.SLEEP_DETECTED) {
                 recordSleepDetected()
             }
+        }
+    }
+
+    private fun handleAlertDismissed() {
+        // User clicked "我知道了" - go back to MONITORING state
+        // so we can alert again on next screen-on event
+        if (stateMachine.state == MonitorState.ALERTING) {
+            stateMachine.backToMonitoring()
         }
     }
 
