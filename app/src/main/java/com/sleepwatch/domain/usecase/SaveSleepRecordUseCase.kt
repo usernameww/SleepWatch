@@ -5,15 +5,18 @@ import com.sleepwatch.domain.repository.SleepRecordRepository
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class SaveSleepRecordUseCase @Inject constructor(
     private val repository: SleepRecordRepository
 ) {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val mutex = Mutex()
 
-    suspend fun getOrCreateTodayRecord(monitorStartHour: Int, monitorStartMinute: Int): SleepRecord {
+    suspend fun getOrCreateTodayRecord(monitorStartHour: Int, monitorStartMinute: Int): SleepRecord = mutex.withLock {
         val today = dateFormat.format(Date())
-        return repository.getByDate(today) ?: run {
+        repository.getByDate(today) ?: run {
             val now = System.currentTimeMillis()
             val cal = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, monitorStartHour)

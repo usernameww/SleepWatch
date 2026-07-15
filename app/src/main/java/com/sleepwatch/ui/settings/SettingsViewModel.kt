@@ -2,6 +2,7 @@ package com.sleepwatch.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sleepwatch.data.db.DefaultData
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.repository.AchievementRepository
 import com.sleepwatch.domain.repository.AlertMessageRepository
@@ -74,6 +75,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             sleepRecordRepository.deleteAll()
             alertMessageRepository.deleteAll()
+            alertMessageRepository.insertAll(DefaultData.alertMessages)
             achievementRepository.deleteAll()
             settingsDataStore.clearSkippedAndEmergency()
         }

@@ -129,8 +129,9 @@ class MonitorService : Service() {
                 val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
                 saveSleepRecordUseCase.recordSleepTime(record)
 
-                // Check if emergency was triggered tonight
-                if (emergency == today) {
+                // Re-read emergency to avoid stale value
+                val currentEmergency = settingsDataStore.emergencyDate.first()
+                if (currentEmergency == today) {
                     saveSleepRecordUseCase.recordEmergency(record)
                 }
 

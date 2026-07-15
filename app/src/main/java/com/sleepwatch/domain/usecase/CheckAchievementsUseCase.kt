@@ -51,13 +51,13 @@ class CheckAchievementsUseCase @Inject constructor(
         }?.let { newlyUnlocked.add(it) }
 
         // STREAK_WEEK
-        checkAndUnlock(STREAK_WEEK) { checkConsecutiveDays(7, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+        checkAndUnlock(STREAK_WEEK) { checkConsecutiveDays(7, targetTimestamp, STREAK_WEEK) }?.let { newlyUnlocked.add(it) }
 
         // STREAK_MONTH
-        checkAndUnlock(STREAK_MONTH) { checkConsecutiveDays(30, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+        checkAndUnlock(STREAK_MONTH) { checkConsecutiveDays(30, targetTimestamp, STREAK_MONTH) }?.let { newlyUnlocked.add(it) }
 
         // STREAK_90
-        checkAndUnlock(STREAK_90) { checkConsecutiveDays(90, targetTimestamp) }?.let { newlyUnlocked.add(it) }
+        checkAndUnlock(STREAK_90) { checkConsecutiveDays(90, targetTimestamp, STREAK_90) }?.let { newlyUnlocked.add(it) }
 
         // LOW_ALERT_WEEK
         checkAndUnlock(LOW_ALERT_WEEK) {
@@ -95,7 +95,7 @@ class CheckAchievementsUseCase @Inject constructor(
         return null
     }
 
-    private suspend fun checkConsecutiveDays(days: Int, targetTimestamp: Long): Boolean {
+    private suspend fun checkConsecutiveDays(days: Int, targetTimestamp: Long, type: String): Boolean {
         val cal = Calendar.getInstance()
         var consecutiveCount = 0
         for (i in 0 until days) {
@@ -108,7 +108,7 @@ class CheckAchievementsUseCase @Inject constructor(
             }
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
-        achievementRepository.updateProgress(STREAK_WEEK, consecutiveCount)
+        achievementRepository.updateProgress(type, consecutiveCount)
         return consecutiveCount >= days
     }
 
@@ -118,7 +118,8 @@ class CheckAchievementsUseCase @Inject constructor(
         for (i in 0 until days) {
             val date = dateFormat.format(cal.time)
             val record = sleepRecordRepository.getByDate(date)
-            if (record?.sleepScore != null && record.sleepScore >= minScore) {
+            if (record?.sleepScore != null && record.sleepScore >= minScore
+                && record.sleepTime != null && record.sleepTime <= targetTimestamp) {
                 consecutiveCount++
             } else {
                 consecutiveCount = 0
