@@ -52,10 +52,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     }
 
     val timeText by remember {
-        derivedStateOf { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(currentTime)) }
-    }
-    val secondsText by remember {
-        derivedStateOf { SimpleDateFormat("ss", Locale.getDefault()).format(Date(currentTime)) }
+        derivedStateOf { SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(currentTime)) }
     }
     val dateText by remember {
         derivedStateOf {
@@ -76,63 +73,53 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         }
     }
 
-    val scrollState = rememberScrollState()
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(60.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // Clock
+        // Clock - single line
         Text(
             text = timeText,
             style = MaterialTheme.typography.displayLarge.copy(
                 fontWeight = FontWeight.ExtraLight,
-                letterSpacing = (-4).sp
+                letterSpacing = (-2).sp
             ),
             color = MaterialTheme.colorScheme.onBackground
         )
-        Text(
-            text = secondsText,
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Light
-            ),
-            color = MaterialTheme.colorScheme.outline
-        )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
             text = dateText,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Sleep Score Ring
+        // Sleep Score Ring - smaller
         val score = latestRecord?.sleepScore
         SleepScoreRing(
             score = score,
-            modifier = Modifier.size(180.dp)
+            modifier = Modifier.size(140.dp)
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
             text = if (score != null) "昨晚睡眠评分" else "暂无评分",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Status Card
+        // Status Card - compact
         StatusCard(
             serviceEnabled = serviceEnabled,
             monitorStartHour = monitorStart.first,
@@ -143,18 +130,19 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             isEmergency = viewModel.isTonightEmergency()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Last Night Summary
+        // Last Night Summary - only show if exists
         latestRecord?.let { record ->
             LastNightCard(
                 sleepTime = record.sleepTime,
                 alertCount = record.totalAlertCount,
                 hasEmergency = record.hasEmergency
             )
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
         // Toggle
         MonitorToggle(
@@ -162,7 +150,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             onToggle = { viewModel.toggleService(it) }
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -281,7 +269,7 @@ private fun StatusCard(
                 )
             )
             .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
-            .padding(24.dp)
+            .padding(16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -352,7 +340,7 @@ private fun LastNightCard(
                 )
             )
             .border(0.5.dp, Color.White.copy(alpha = 0.05f), shape)
-            .padding(24.dp)
+            .padding(16.dp)
     ) {
         Text(
             text = "昨晚记录",

@@ -38,13 +38,16 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
     ) {
-        TopAppBar(title = { Text("统计") })
+        Text(
+            text = "统计",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
+        )
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StatsPeriod.entries.forEach { p ->
@@ -65,9 +68,7 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StatCard(modifier = Modifier.weight(1f), title = "平均入睡", value = viewModel.averageSleepTime(currentRecords))
@@ -80,7 +81,7 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -118,7 +119,6 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
