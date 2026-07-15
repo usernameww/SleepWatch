@@ -1,16 +1,27 @@
 package com.sleepwatch.ui.navigation
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -24,11 +35,16 @@ import com.sleepwatch.ui.settings.SettingsScreen
 import com.sleepwatch.ui.setup.SetupScreen
 import com.sleepwatch.ui.statistics.StatisticsScreen
 
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Home : Screen("home", "首页", Icons.Default.Home)
-    data object Statistics : Screen("statistics", "统计", Icons.Default.BarChart)
-    data object Achievements : Screen("achievements", "成就", Icons.Default.Star)
-    data object Settings : Screen("settings", "设置", Icons.Default.Settings)
+sealed class Screen(
+    val route: String,
+    val title: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+) {
+    data object Home : Screen("home", "首页", Icons.Filled.Home, Icons.Outlined.Home)
+    data object Statistics : Screen("statistics", "统计", Icons.Filled.BarChart, Icons.Outlined.BarChart)
+    data object Achievements : Screen("achievements", "成就", Icons.Filled.Star, Icons.Outlined.Star)
+    data object Settings : Screen("settings", "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
 val bottomNavItems = listOf(Screen.Home, Screen.Statistics, Screen.Achievements, Screen.Settings)
@@ -38,6 +54,7 @@ fun NavGraph() {
     val navController = rememberNavController()
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
@@ -46,12 +63,31 @@ fun NavGraph() {
             }
 
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    tonalElevation = 0.dp,
+                    modifier = Modifier
+                        .border(
+                            width = 0.5.dp,
+                            color = Color.White.copy(alpha = 0.06f)
+                        )
+                ) {
                     bottomNavItems.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
+                                    contentDescription = screen.title
+                                )
+                            },
+                            label = {
+                                Text(
+                                    screen.title,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            },
+                            selected = selected,
                             onClick = {
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
@@ -60,7 +96,14 @@ fun NavGraph() {
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.outline,
+                                unselectedTextColor = MaterialTheme.colorScheme.outline,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            )
                         )
                     }
                 }
@@ -72,9 +115,15 @@ fun NavGraph() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Statistics.route) { StatisticsScreen() }
-            composable(Screen.Achievements.route) { AchievementsScreen() }
+            composable(Screen.Home.route) {
+                HomeScreen()
+            }
+            composable(Screen.Statistics.route) {
+                StatisticsScreen()
+            }
+            composable(Screen.Achievements.route) {
+                AchievementsScreen()
+            }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToSetup = { navController.navigate("setup") },
