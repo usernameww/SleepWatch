@@ -48,9 +48,6 @@ fun SetupScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("权限引导") })
-        },
         bottomBar = {
             Button(
                 onClick = onComplete,
@@ -71,7 +68,11 @@ fun SetupScreen(
                 .padding(horizontal = 16.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "权限引导",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)
+                )
                 Text(
                     text = "为了正常运行，SleepWatch 需要以下权限：",
                     style = MaterialTheme.typography.bodyLarge,
