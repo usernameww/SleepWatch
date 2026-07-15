@@ -172,9 +172,14 @@ class MonitorService : Service() {
         val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
         val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
         saveSleepRecordUseCase.recordAlert(record)
-        sendAlertNotification(record.totalAlertCount)
         playAlertEffects()
-        launchAlertActivity()
+
+        // Try to launch AlertActivity directly (popup)
+        val launched = launchAlertActivity()
+        if (!launched) {
+            // Fallback: show as notification with fullScreenIntent
+            sendAlertNotification(record.totalAlertCount)
+        }
     }
 
     private suspend fun recordSleepDetected() {
@@ -273,8 +278,8 @@ class MonitorService : Service() {
         }
     }
 
-    private fun launchAlertActivity() {
-        try {
+    private fun launchAlertActivity(): Boolean {
+        return try {
             val intent = Intent(this, AlertActivity::class.java).apply {
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -283,8 +288,9 @@ class MonitorService : Service() {
                 )
             }
             startActivity(intent)
+            true
         } catch (e: Exception) {
-            // Fallback: notification already sent by triggerAlert()
+            false
         }
     }
 

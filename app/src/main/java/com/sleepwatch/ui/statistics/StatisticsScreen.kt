@@ -313,6 +313,7 @@ private fun YearChart(records: List<SleepRecord>) {
 private fun RecordRow(record: SleepRecord) {
     val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val isSkipped = record.sleepTime == null && record.totalAlertCount > 0
 
     Row(
         modifier = Modifier
@@ -324,7 +325,11 @@ private fun RecordRow(record: SleepRecord) {
         Text(text = dateFormat.format(Date(record.monitorStartTime)), style = MaterialTheme.typography.bodyMedium)
         record.sleepTime?.let {
             Text(text = timeFormat.format(Date(it)), style = MaterialTheme.typography.bodyMedium)
-        } ?: Text("--:--", style = MaterialTheme.typography.bodyMedium)
+        } ?: if (isSkipped) {
+            Text("已跳过", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
+        } else {
+            Text("--:--", style = MaterialTheme.typography.bodyMedium)
+        }
         record.sleepScore?.let {
             val color = when {
                 it >= 80 -> MaterialTheme.colorScheme.primary
@@ -337,6 +342,10 @@ private fun RecordRow(record: SleepRecord) {
                 fontWeight = FontWeight.Bold,
                 color = color
             )
-        } ?: Text("--", style = MaterialTheme.typography.bodyMedium)
+        } ?: if (isSkipped) {
+            Text("跳过", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
+        } else {
+            Text("--", style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }

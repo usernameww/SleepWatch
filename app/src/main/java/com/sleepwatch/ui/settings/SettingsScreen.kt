@@ -154,7 +154,7 @@ fun SettingsScreen(
     }
 
     if (showMonitorTimePicker) {
-        TimePickerDialog(
+        WheelTimePickerDialog(
             title = "监测开始时间",
             initialHour = monitorStartHour,
             initialMinute = monitorStartMinute,
@@ -164,7 +164,7 @@ fun SettingsScreen(
     }
 
     if (showEndTimePicker) {
-        TimePickerDialog(
+        WheelTimePickerDialog(
             title = "监测结束时间",
             initialHour = monitorEndHour,
             initialMinute = monitorEndMinute,
@@ -174,7 +174,7 @@ fun SettingsScreen(
     }
 
     if (showBedtimePicker) {
-        TimePickerDialog(
+        WheelTimePickerDialog(
             title = "目标就寝时间",
             initialHour = targetHour,
             initialMinute = targetMinute,
