@@ -7,15 +7,31 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.graphics.PixelFormat
 import android.media.RingtoneManager
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import com.sleepwatch.data.datastore.SettingsDataStore
+import com.sleepwatch.domain.usecase.GetAlertMessagesUseCase
 import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
 import com.sleepwatch.service.receiver.ScreenReceiver
 import com.sleepwatch.ui.alert.AlertActivity
+import com.sleepwatch.ui.alert.AlertScreen
+import com.sleepwatch.ui.alert.AlertViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
@@ -24,17 +40,24 @@ import java.util.*
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MonitorService : Service() {
+class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
 
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var saveSleepRecordUseCase: SaveSleepRecordUseCase
     @Inject lateinit var alarmScheduler: AlarmScheduler
+    @Inject lateinit var getAlertMessagesUseCase: GetAlertMessagesUseCase
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val stateMachine = MonitorStateMachine()
     private var screenReceiver: ScreenReceiver? = null
     private var checkJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var alertOverlay: ComposeView? = null
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    private val store = ViewModelStore()
+    override val viewModelStore: ViewModelStore get() = store
 
     companion object {
         const val CHANNEL_ID = "monitor_channel"
@@ -52,10 +75,12 @@ class MonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
         createNotificationChannels()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
         when (intent?.action) {
             ACTION_START -> startMonitoring()
             ACTION_STOP -> stopMonitoring()
@@ -95,6 +120,7 @@ class MonitorService : Service() {
         alarmScheduler.cancelCheck()
         checkJob?.cancel()
         unregisterScreenReceiver()
+        removeAlertOverlay()
         stateMachine.reset()
         releaseWakeLock()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -174,11 +200,60 @@ class MonitorService : Service() {
         saveSleepRecordUseCase.recordAlert(record)
         playAlertEffects()
 
-        // Try to launch AlertActivity directly (popup)
-        val launched = launchAlertActivity()
-        if (!launched) {
-            // Fallback: show as notification with fullScreenIntent
+        if (Settings.canDrawOverlays(this)) {
+            // Overlay permission granted: show floating window on top of any app
+            launchAlertOverlay()
+        } else {
+            // No overlay permission: fallback to notification + activity launch
             sendAlertNotification(record.totalAlertCount)
+            launchAlertActivity()
+        }
+    }
+
+    private fun launchAlertOverlay() {
+        removeAlertOverlay()
+
+        val alertViewModel = AlertViewModel(getAlertMessagesUseCase, settingsDataStore)
+
+        val composeView = ComposeView(this).apply {
+            setContent {
+                AlertScreen(
+                    onDismiss = {
+                        handleAlertDismissed()
+                        removeAlertOverlay()
+                    },
+                    viewModel = alertViewModel
+                )
+            }
+        }
+        composeView.setViewTreeLifecycleOwner(this)
+        composeView.setViewTreeViewModelStoreOwner(this)
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        windowManager.addView(composeView, params)
+        alertOverlay = composeView
+    }
+
+    private fun removeAlertOverlay() {
+        alertOverlay?.let {
+            try {
+                val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+                windowManager.removeView(it)
+            } catch (_: Exception) {}
+            alertOverlay = null
         }
     }
 
@@ -231,6 +306,15 @@ class MonitorService : Service() {
     }
 
     private fun sendAlertNotification(alertCount: Int) {
+        // On Android 13+, POST_NOTIFICATIONS permission is required
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                return
+            }
+        }
+
         val intent = Intent(this, AlertActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -374,6 +458,9 @@ class MonitorService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        removeAlertOverlay()
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        store.clear()
         releaseWakeLock()
         scope.cancel()
         unregisterScreenReceiver()
