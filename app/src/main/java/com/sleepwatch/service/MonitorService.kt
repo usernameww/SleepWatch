@@ -32,7 +32,7 @@ import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
 import com.sleepwatch.service.receiver.ScreenReceiver
 import com.sleepwatch.ui.alert.AlertActivity
 import com.sleepwatch.ui.alert.AlertScreen
-import com.sleepwatch.ui.alert.AlertViewModel
+import com.sleepwatch.service.SimpleAlertViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
@@ -41,7 +41,7 @@ import java.util.*
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
+class MonitorService : Service(), ViewModelStoreOwner {
 
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var saveSleepRecordUseCase: SaveSleepRecordUseCase
@@ -54,9 +54,7 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
     private var checkJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var alertOverlay: ComposeView? = null
-
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    private val overlayLifecycleOwner = ServiceLifecycleOwner()
     private val store = ViewModelStore()
     override val viewModelStore: ViewModelStore get() = store
 
@@ -77,14 +75,20 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
 
     override fun onCreate() {
         super.onCreate()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
         createNotificationChannels()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
-            ACTION_START -> startMonitoring()
+            ACTION_START -> {
+                // Check if monitoring is already started
+                if (stateMachine.state == MonitorState.IDLE) {
+                    startMonitoring()
+                } else {
+                    Log.d(TAG, "Monitoring already active, skipping start")
+                }
+            }
             ACTION_STOP -> stopMonitoring()
             ACTION_SCREEN_ON -> handleScreenOn()
             ACTION_SCREEN_OFF -> handleScreenOff()
@@ -98,22 +102,26 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
         acquireWakeLock()
 
         scope.launch {
-            val threshold = settingsDataStore.screenOffThreshold.first()
-            stateMachine.setScreenOffThreshold(threshold)
-            stateMachine.startMonitoring()
+            try {
+                val threshold = settingsDataStore.screenOffThreshold.first()
+                stateMachine.setScreenOffThreshold(threshold)
+                stateMachine.startMonitoring()
 
-            val startHour = settingsDataStore.monitorStartHour.first()
-            val startMinute = settingsDataStore.monitorStartMinute.first()
-            val interval = settingsDataStore.checkIntervalMinutes.first()
+                val startHour = settingsDataStore.monitorStartHour.first()
+                val startMinute = settingsDataStore.monitorStartMinute.first()
+                val interval = settingsDataStore.checkIntervalMinutes.first()
 
-            alarmScheduler.scheduleCheck(startHour, startMinute, interval)
-            registerScreenReceiver()
-            startPeriodicCheck()
+                alarmScheduler.scheduleCheck(startHour, startMinute, interval)
+                registerScreenReceiver()
+                startPeriodicCheck()
 
-            // Check if we're already past monitoring start time and phone is on
-            if (isPastMonitoringStart(startHour, startMinute) && isPhoneScreenOn()) {
-                stateMachine.onScreenOn() // -> ALERTING
-                triggerAlert()
+                // Check if we're already past monitoring start time and phone is on
+                if (isPastMonitoringStart(startHour, startMinute) && isPhoneScreenOn()) {
+                    stateMachine.onScreenOn() // -> ALERTING
+                    triggerAlert()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to start monitoring", e)
             }
         }
     }
@@ -194,66 +202,79 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
     }
 
     private suspend fun triggerAlert() {
-        val monitorStartHour = settingsDataStore.monitorStartHour.first()
-        val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
-        val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
-        saveSleepRecordUseCase.recordAlert(record)
-        playAlertEffects()
+        try {
+            val monitorStartHour = settingsDataStore.monitorStartHour.first()
+            val monitorStartMinute = settingsDataStore.monitorStartMinute.first()
+            val record = saveSleepRecordUseCase.getOrCreateTodayRecord(monitorStartHour, monitorStartMinute)
+            saveSleepRecordUseCase.recordAlert(record)
+            playAlertEffects()
 
-        if (Settings.canDrawOverlays(this)) {
-            // Overlay permission granted: show floating window on top of any app
-            launchAlertOverlay()
-        } else {
-            // No overlay permission: fallback to notification + activity launch
-            sendAlertNotification(record.totalAlertCount)
-            launchAlertActivity()
+            if (Settings.canDrawOverlays(this)) {
+                // Overlay permission granted: show floating window on top of any app
+                launchAlertOverlay()
+            } else {
+                // No overlay permission: fallback to notification + activity launch
+                sendAlertNotification(record.totalAlertCount)
+                launchAlertActivity()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to trigger alert", e)
         }
     }
 
     private fun launchAlertOverlay() {
-        removeAlertOverlay()
+        try {
+            removeAlertOverlay()
 
-        // Clear old ViewModel from the store to prevent leaks from repeated calls
-        store.clear()
-        val alertViewModel = AlertViewModel(getAlertMessagesUseCase, settingsDataStore)
-        // Put into the store so onDestroy -> store.clear() properly releases it
-        store.put("alert_vm", alertViewModel)
+            // Clear old ViewModel from the store to prevent leaks from repeated calls
+            store.clear()
 
-        val composeView = ComposeView(this).apply {
-            setContent {
-                AlertScreen(
-                    onDismiss = {
-                        handleAlertDismissed()
-                        removeAlertOverlay()
-                    },
-                    viewModel = alertViewModel
-                )
+            // Create a simple ViewModel for the overlay (without Hilt)
+            val alertViewModel = SimpleAlertViewModel(getAlertMessagesUseCase, settingsDataStore)
+            store.put("alert_vm", alertViewModel)
+
+            val composeView = ComposeView(this).apply {
+                setContent {
+                    AlertScreen(
+                        onDismiss = {
+                            handleAlertDismissed()
+                            removeAlertOverlay()
+                        },
+                        viewModel = alertViewModel
+                    )
+                }
             }
-        }
-        composeView.setViewTreeLifecycleOwner(this)
-        composeView.setViewTreeViewModelStoreOwner(this)
+            composeView.setViewTreeLifecycleOwner(overlayLifecycleOwner)
+            composeView.setViewTreeViewModelStoreOwner(this)
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER
-        }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                    or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
 
-        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        windowManager.addView(composeView, params)
-        alertOverlay = composeView
+            val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            windowManager.addView(composeView, params)
+            alertOverlay = composeView
+            overlayLifecycleOwner.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch alert overlay", e)
+            // Fallback to activity
+            launchAlertActivity()
+        }
     }
 
     private fun removeAlertOverlay() {
         alertOverlay?.let {
             try {
+                overlayLifecycleOwner.destroy()
                 val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 windowManager.removeView(it)
             } catch (e: Exception) {
@@ -471,11 +492,16 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
 
     override fun onDestroy() {
         super.onDestroy()
-        removeAlertOverlay()
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
-        store.clear()
-        releaseWakeLock()
-        scope.cancel()
-        unregisterScreenReceiver()
+        Log.d(TAG, "MonitorService onDestroy called")
+        try {
+            removeAlertOverlay()
+            overlayLifecycleOwner.destroy()
+            store.clear()
+            releaseWakeLock()
+            scope.cancel()
+            unregisterScreenReceiver()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during onDestroy cleanup", e)
+        }
     }
 }

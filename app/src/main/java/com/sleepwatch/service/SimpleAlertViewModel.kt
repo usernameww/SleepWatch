@@ -1,26 +1,21 @@
-package com.sleepwatch.ui.alert
+package com.sleepwatch.service
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.usecase.GetAlertMessagesUseCase
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import com.sleepwatch.ui.alert.AlertInfo
+import com.sleepwatch.ui.alert.AlertViewModelInterface
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import javax.inject.Inject
 
-data class AlertInfo(
-    val title: String,
-    val content: String,
-    val healthTip: String,
-    val level: Int,
-    val totalLevels: Int
-)
-
-@HiltViewModel
-class AlertViewModel @Inject constructor(
+/**
+ * Simple ViewModel for alert overlay in service (without Hilt injection)
+ */
+class SimpleAlertViewModel(
     private val getAlertMessagesUseCase: GetAlertMessagesUseCase,
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel(), AlertViewModelInterface {

@@ -2,6 +2,7 @@ package com.sleepwatch
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,12 +27,18 @@ class MainActivity : ComponentActivity() {
 
         // Restore MonitorService if it was enabled
         lifecycleScope.launch {
-            val enabled = settingsDataStore.serviceEnabled.first()
-            if (enabled) {
-                val intent = Intent(this@MainActivity, MonitorService::class.java).apply {
-                    action = MonitorService.ACTION_START
+            try {
+                val enabled = settingsDataStore.serviceEnabled.first()
+                if (enabled) {
+                    Log.d("MainActivity", "Restoring MonitorService...")
+                    val intent = Intent(this@MainActivity, MonitorService::class.java).apply {
+                        action = MonitorService.ACTION_START
+                    }
+                    startService(intent)
+                    Log.d("MainActivity", "MonitorService started successfully")
                 }
-                startService(intent)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to restore MonitorService", e)
             }
         }
 

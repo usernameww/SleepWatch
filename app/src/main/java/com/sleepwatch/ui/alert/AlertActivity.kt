@@ -69,7 +69,7 @@ class AlertActivity : ComponentActivity() {
 @Composable
 fun AlertScreen(
     onDismiss: () -> Unit,
-    viewModel: AlertViewModel = hiltViewModel()
+    viewModel: AlertViewModelInterface = hiltViewModel<AlertViewModel>()
 ) {
     val alertInfo = remember { mutableStateOf<AlertInfo?>(null) }
 
