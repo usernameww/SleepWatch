@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 @Database(
     entities = [SleepRecord::class, AlertMessage::class, Achievement::class],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class SleepWatchDatabase : RoomDatabase() {
     abstract fun sleepRecordDao(): SleepRecordDao

@@ -14,8 +14,27 @@ class SaveSleepRecordUseCase @Inject constructor(
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val mutex = Mutex()
 
+    /**
+     * 根据监测开始时间计算监测周期的日期。
+     * 如果当前时间在监测开始时间之前，说明还在昨晚的监测周期，返回昨天的日期。
+     */
+    fun getMonitoringDate(monitorStartHour: Int, monitorStartMinute: Int): String {
+        val now = Calendar.getInstance()
+        val monitorStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, monitorStartHour)
+            set(Calendar.MINUTE, monitorStartMinute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        // 如果当前时间在监测开始时间之前，说明还在昨晚的监测周期
+        if (now.before(monitorStart)) {
+            now.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        return dateFormat.format(now.time)
+    }
+
     suspend fun getOrCreateTodayRecord(monitorStartHour: Int, monitorStartMinute: Int): SleepRecord = mutex.withLock {
-        val today = dateFormat.format(Date())
+        val today = getMonitoringDate(monitorStartHour, monitorStartMinute)
         repository.getByDate(today) ?: run {
             val now = System.currentTimeMillis()
             val cal = Calendar.getInstance().apply {
@@ -70,10 +89,10 @@ class SaveSleepRecordUseCase @Inject constructor(
 
         val baseScore = 100f
         val targetCal = Calendar.getInstance().apply {
-            timeInMillis = record.sleepTime
             set(Calendar.HOUR_OF_DAY, targetHour)
             set(Calendar.MINUTE, targetMinute)
             set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
         }
 
         val minutesLate = ((record.sleepTime - targetCal.timeInMillis) / 60000).toInt().coerceAtLeast(0)

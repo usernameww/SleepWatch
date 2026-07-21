@@ -15,6 +15,7 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
@@ -60,6 +61,7 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
     override val viewModelStore: ViewModelStore get() = store
 
     companion object {
+        private const val TAG = "MonitorService"
         const val CHANNEL_ID = "monitor_channel"
         const val ALERT_CHANNEL_ID = "alert_channel"
         const val NOTIFICATION_ID = 1
@@ -184,10 +186,8 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
                             triggerAlert()
                         }
                     }
-                    // If we're in ALERTING, keep triggering alerts
-                    stateMachine.state == MonitorState.ALERTING -> {
-                        triggerAlert()
-                    }
+                    // ALERTING state: do NOT re-trigger alerts here.
+                    // Alerts are driven by screen-on events in handleScreenOn().
                 }
             }
         }
@@ -213,7 +213,11 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
     private fun launchAlertOverlay() {
         removeAlertOverlay()
 
+        // Clear old ViewModel from the store to prevent leaks from repeated calls
+        store.clear()
         val alertViewModel = AlertViewModel(getAlertMessagesUseCase, settingsDataStore)
+        // Put into the store so onDestroy -> store.clear() properly releases it
+        store.put("alert_vm", alertViewModel)
 
         val composeView = ComposeView(this).apply {
             setContent {
@@ -252,7 +256,9 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
             try {
                 val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 windowManager.removeView(it)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove alert overlay", e)
+            }
             alertOverlay = null
         }
     }
@@ -351,14 +357,18 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
                 val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 val ringtone = RingtoneManager.getRingtone(applicationContext, notification)
                 ringtone?.play()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to play alert sound", e)
+            }
         }
 
         if (vibrationEnabled) {
             try {
                 val vibrator = getSystemService(Vibrator::class.java)
                 vibrator?.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to vibrate device", e)
+            }
         }
     }
 
@@ -374,6 +384,7 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
             startActivity(intent)
             true
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch alert activity", e)
             false
         }
     }
@@ -391,7 +402,9 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
 
     private fun unregisterScreenReceiver() {
         screenReceiver?.let {
-            try { unregisterReceiver(it) } catch (_: Exception) {}
+            try { unregisterReceiver(it) } catch (e: Exception) {
+                Log.e(TAG, "Failed to unregister screen receiver", e)
+            }
             screenReceiver = null
         }
     }
@@ -435,7 +448,7 @@ class MonitorService : Service(), LifecycleOwner, ViewModelStoreOwner {
     private fun acquireWakeLock() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SleepWatch::Monitor")
-        wakeLock?.acquire(10 * 60 * 1000L)
+        wakeLock?.acquire(8 * 60 * 60 * 1000L)  // 8小时超时，防止异常情况下的电量消耗
     }
 
     private fun releaseWakeLock() {

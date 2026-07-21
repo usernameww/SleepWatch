@@ -1,5 +1,6 @@
 package com.sleepwatch.service
 
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -19,20 +20,20 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `startMonitoring transitions from IDLE to MONITORING`() {
+    fun `startMonitoring transitions from IDLE to MONITORING`() = runTest {
         stateMachine.startMonitoring()
         assertEquals(MonitorState.MONITORING, stateMachine.state)
     }
 
     @Test
-    fun `startMonitoring does nothing if not IDLE`() {
+    fun `startMonitoring does nothing if not IDLE`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.startMonitoring()
         assertEquals(MonitorState.MONITORING, stateMachine.state)
     }
 
     @Test
-    fun `screen on from MONITORING transitions to ALERTING`() {
+    fun `screen on from MONITORING transitions to ALERTING`() = runTest {
         stateMachine.startMonitoring()
         val result = stateMachine.onScreenOn()
         assertEquals(MonitorState.ALERTING, result)
@@ -40,13 +41,13 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `screen on from IDLE stays IDLE`() {
+    fun `screen on from IDLE stays IDLE`() = runTest {
         val result = stateMachine.onScreenOn()
         assertEquals(MonitorState.IDLE, result)
     }
 
     @Test
-    fun `screen off increments counter in MONITORING`() {
+    fun `screen off increments counter in MONITORING`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.setScreenOffThreshold(3)
 
@@ -61,7 +62,7 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `screen off from ALERTING to SLEEP_DETECTED after threshold`() {
+    fun `screen off from ALERTING stays ALERTING and does not increment counter`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.setScreenOffThreshold(2)
         stateMachine.onScreenOn() // -> ALERTING
@@ -70,11 +71,15 @@ class MonitorStateMachineTest {
         assertEquals(MonitorState.ALERTING, stateMachine.state)
 
         stateMachine.onScreenOff()
-        assertEquals(MonitorState.SLEEP_DETECTED, stateMachine.state)
+        assertEquals(MonitorState.ALERTING, stateMachine.state)
+
+        // Back to monitoring and screen off counter should reset
+        stateMachine.backToMonitoring()
+        assertEquals(MonitorState.MONITORING, stateMachine.state)
     }
 
     @Test
-    fun `screen on from SLEEP_DETECTED resets to MONITORING`() {
+    fun `screen on from SLEEP_DETECTED resets to MONITORING`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.setScreenOffThreshold(1)
         stateMachine.onScreenOff() // -> SLEEP_DETECTED
@@ -84,7 +89,7 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `reset returns to IDLE`() {
+    fun `reset returns to IDLE`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.onScreenOn()
         stateMachine.reset()
@@ -92,7 +97,7 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `pause resets screen off counter`() {
+    fun `pause resets screen off counter`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.setScreenOffThreshold(3)
         stateMachine.onScreenOff()
@@ -103,7 +108,7 @@ class MonitorStateMachineTest {
     }
 
     @Test
-    fun `custom threshold works correctly`() {
+    fun `custom threshold works correctly`() = runTest {
         stateMachine.startMonitoring()
         stateMachine.setScreenOffThreshold(5)
 

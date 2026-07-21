@@ -3,6 +3,7 @@ package com.sleepwatch.domain.usecase
 import com.sleepwatch.data.db.entity.Achievement
 import com.sleepwatch.domain.repository.AchievementRepository
 import com.sleepwatch.domain.repository.SleepRecordRepository
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -96,15 +97,25 @@ class CheckAchievementsUseCase @Inject constructor(
     }
 
     private suspend fun checkConsecutiveDays(days: Int, targetTimestamp: Long, type: String): Boolean {
+        val endDate = dateFormat.format(Date())
+        val startDate = dateFormat.format(Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -days)
+        }.time)
+
+        // 一次性获取所有记录，避免多次数据库查询
+        val records = sleepRecordRepository.getRecordsBetween(startDate, endDate)
+            .first()
+            .associateBy { it.date }
+
         val cal = Calendar.getInstance()
         var consecutiveCount = 0
         for (i in 0 until days) {
             val date = dateFormat.format(cal.time)
-            val record = sleepRecordRepository.getByDate(date)
+            val record = records[date]
             if (record?.sleepTime != null && record.sleepTime <= targetTimestamp) {
                 consecutiveCount++
             } else {
-                consecutiveCount = 0
+                break // 遇到中断立即退出
             }
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
@@ -113,16 +124,26 @@ class CheckAchievementsUseCase @Inject constructor(
     }
 
     private suspend fun checkConsecutiveScoreDays(days: Int, minScore: Float, targetTimestamp: Long): Boolean {
+        val endDate = dateFormat.format(Date())
+        val startDate = dateFormat.format(Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -days)
+        }.time)
+
+        // 一次性获取所有记录，避免多次数据库查询
+        val records = sleepRecordRepository.getRecordsBetween(startDate, endDate)
+            .first()
+            .associateBy { it.date }
+
         val cal = Calendar.getInstance()
         var consecutiveCount = 0
         for (i in 0 until days) {
             val date = dateFormat.format(cal.time)
-            val record = sleepRecordRepository.getByDate(date)
+            val record = records[date]
             if (record?.sleepScore != null && record.sleepScore >= minScore
                 && record.sleepTime != null && record.sleepTime <= targetTimestamp) {
                 consecutiveCount++
             } else {
-                consecutiveCount = 0
+                break // 遇到中断立即退出
             }
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
