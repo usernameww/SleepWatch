@@ -32,6 +32,7 @@ fun SettingsScreen(
     val soundEnabled by viewModel.soundEnabled.collectAsState()
     val vibrationEnabled by viewModel.vibrationEnabled.collectAsState()
     val serviceEnabled by viewModel.serviceEnabled.collectAsState()
+    val permissionError by viewModel.permissionError.collectAsState()
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showMonitorTimePicker by remember { mutableStateOf(false) }
@@ -60,6 +61,14 @@ fun SettingsScreen(
                 onCheckedChange = { viewModel.setServiceEnabled(it) }
             )
         }
+        permissionError?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
 
         SettingsSection(title = "监测参数") {
             SettingsItem(
@@ -81,7 +90,7 @@ fun SettingsScreen(
                 onClick = { showIntervalDialog = true }
             )
             SettingsItem(
-                title = "连续息屏阈值",
+                title = "连续未使用阈值",
                 subtitle = "${screenOffThreshold} 次",
                 icon = Icons.Default.ScreenLockPortrait,
                 onClick = { showThresholdDialog = true }
@@ -126,8 +135,8 @@ fun SettingsScreen(
 
         SettingsSection(title = "数据管理") {
             SettingsItem(
-                title = "清除所有数据",
-                subtitle = "删除所有睡眠记录、成就和设置",
+                title = "清除历史与成就",
+                subtitle = "删除睡眠记录、成就并恢复默认提醒文案",
                 icon = Icons.Default.Delete,
                 onClick = { showClearDialog = true },
                 tint = MaterialTheme.colorScheme.error
@@ -140,7 +149,7 @@ fun SettingsScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("清除所有数据") },
+            title = { Text("清除历史与成就") },
             text = { Text("此操作将删除所有睡眠记录、成就数据和提醒消息设置，且无法恢复。确定要继续吗？") },
             confirmButton = {
                 TextButton(onClick = { viewModel.clearAllData(); showClearDialog = false }) {
@@ -195,7 +204,7 @@ fun SettingsScreen(
 
     if (showThresholdDialog) {
         NumberPickerDialog(
-            title = "连续息屏阈值（次）",
+            title = "连续未使用阈值（次）",
             initialValue = screenOffThreshold,
             range = 1..10,
             onConfirm = { viewModel.setScreenOffThreshold(it); showThresholdDialog = false },

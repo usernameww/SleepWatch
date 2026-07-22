@@ -6,47 +6,51 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.content.ContextCompat
+import com.sleepwatch.domain.monitoring.ScheduledMonitorAction
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AlarmScheduler @Inject constructor(
+class MonitorAlarmScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun scheduleCheck(hour: Int, minute: Int, intervalMinutes: Int) {
-        val intent = Intent(context, MonitorCheckReceiver::class.java).apply {
-            putExtra(EXTRA_INTERVAL_MINUTES, intervalMinutes)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+    fun scheduleWindowStart(triggerAtMillis: Long) =
+        schedule(ACTION_WINDOW_START, REQUEST_WINDOW_START, triggerAtMillis)
 
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
+    fun scheduleCheck(triggerAtMillis: Long) =
+        schedule(ACTION_CHECK, REQUEST_CHECK, triggerAtMillis)
+
+    fun scheduleWindowEnd(triggerAtMillis: Long) =
+        schedule(ACTION_WINDOW_END, REQUEST_WINDOW_END, triggerAtMillis)
+
+    fun reconcile(actions: List<ScheduledMonitorAction>) {
+        cancelAll()
+        actions.forEach { action ->
+            when (action) {
+                is ScheduledMonitorAction.WindowStart -> scheduleWindowStart(action.at.toEpochMilli())
+                is ScheduledMonitorAction.Check -> scheduleCheck(action.at.toEpochMilli())
+                is ScheduledMonitorAction.WindowEnd -> scheduleWindowEnd(action.at.toEpochMilli())
             }
         }
-
-        scheduleAlarm(calendar.timeInMillis, pendingIntent)
     }
 
-    private fun scheduleAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-            }
+    fun cancelAll() {
+        cancel(ACTION_WINDOW_START, REQUEST_WINDOW_START)
+        cancel(ACTION_CHECK, REQUEST_CHECK)
+        cancel(ACTION_WINDOW_END, REQUEST_WINDOW_END)
+    }
+
+    fun canScheduleExactAlarms(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+
+    private fun schedule(action: String, requestCode: Int, triggerAtMillis: Long) {
+        val pendingIntent = pendingIntent(action, requestCode, triggerAtMillis)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
         } else {
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
@@ -56,59 +60,57 @@ class AlarmScheduler @Inject constructor(
         }
     }
 
-    fun cancelCheck() {
-        val intent = Intent(context, MonitorCheckReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, 0, intent,
+    private fun cancel(action: String, requestCode: Int) {
+        val pendingIntent = pendingIntent(action, requestCode)
+        alarmManager.cancel(pendingIntent)
+        pendingIntent.cancel()
+    }
+
+    private fun pendingIntent(
+        action: String,
+        requestCode: Int,
+        triggerAtMillis: Long? = null
+    ): PendingIntent {
+        val intent = Intent(context, MonitorAlarmReceiver::class.java).setAction(action).apply {
+            triggerAtMillis?.let { putExtra(EXTRA_TRIGGER_AT, it) }
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.cancel(pendingIntent)
     }
 
     companion object {
-        const val EXTRA_INTERVAL_MINUTES = "extra_interval_minutes"
+        const val ACTION_WINDOW_START = "com.sleepwatch.alarm.WINDOW_START"
+        const val ACTION_CHECK = "com.sleepwatch.alarm.CHECK"
+        const val ACTION_WINDOW_END = "com.sleepwatch.alarm.WINDOW_END"
+        const val EXTRA_TRIGGER_AT = "com.sleepwatch.alarm.TRIGGER_AT"
+
+        private const val REQUEST_WINDOW_START = 100
+        private const val REQUEST_CHECK = 101
+        private const val REQUEST_WINDOW_END = 102
     }
 }
 
-class MonitorCheckReceiver : BroadcastReceiver() {
+class MonitorAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        // Re-schedule the next alarm
-        val intervalMinutes = intent?.getIntExtra(AlarmScheduler.EXTRA_INTERVAL_MINUTES, 0) ?: 0
-        if (intervalMinutes > 0) {
-            val nextTriggerMillis = System.currentTimeMillis() + (intervalMinutes * 60 * 1000L)
-            val rescheduleIntent = Intent(context, MonitorCheckReceiver::class.java).apply {
-                putExtra(AlarmScheduler.EXTRA_INTERVAL_MINUTES, intervalMinutes)
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 0, rescheduleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        nextTriggerMillis,
-                        pendingIntent
-                    )
-                }
-            } else {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    nextTriggerMillis,
-                    pendingIntent
+        val serviceAction = when (intent?.action) {
+            MonitorAlarmScheduler.ACTION_WINDOW_START -> MonitorService.ACTION_WINDOW_START
+            MonitorAlarmScheduler.ACTION_CHECK -> MonitorService.ACTION_CHECK
+            MonitorAlarmScheduler.ACTION_WINDOW_END -> MonitorService.ACTION_WINDOW_END
+            else -> return
+        }
+        ContextCompat.startForegroundService(
+            context,
+            Intent(context, MonitorService::class.java)
+                .setAction(serviceAction)
+                .putExtra(
+                    MonitorService.EXTRA_TRIGGER_AT,
+                    intent?.getLongExtra(MonitorAlarmScheduler.EXTRA_TRIGGER_AT, Long.MIN_VALUE)
+                        ?: Long.MIN_VALUE
                 )
-            }
-        }
-
-        // Trigger the monitor service
-        val serviceIntent = Intent(context, MonitorService::class.java).apply {
-            action = MonitorService.ACTION_SCREEN_ON
-        }
-        try {
-            context.startService(serviceIntent)
-        } catch (_: Exception) {
-            // Service may not be running
-        }
+        )
     }
 }

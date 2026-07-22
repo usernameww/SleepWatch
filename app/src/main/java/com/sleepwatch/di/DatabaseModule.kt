@@ -26,6 +26,7 @@ object DatabaseModule {
             "sleepwatch.db"
         )
             .addCallback(SleepWatchDatabase.getCallback())
+            .addMigrations(SleepWatchDatabase.MIGRATION_1_2)
             .build()
     }
 

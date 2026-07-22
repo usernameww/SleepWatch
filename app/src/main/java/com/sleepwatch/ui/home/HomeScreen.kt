@@ -41,6 +41,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     val serviceEnabled by viewModel.serviceEnabled.collectAsState()
     val monitorStart by viewModel.monitorStartTime.collectAsState()
     val monitorEnd by viewModel.monitorEndTime.collectAsState()
+    val permissionError by viewModel.permissionError.collectAsState()
 
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -126,9 +127,18 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
             monitorStartMinute = monitorStart.second,
             monitorEndHour = monitorEnd.first,
             monitorEndMinute = monitorEnd.second,
-            isSkipped = viewModel.isTonightSkipped(),
-            isEmergency = viewModel.isTonightEmergency()
+            isSkipped = viewModel.isCurrentWindowSkipped()
         )
+
+        permissionError?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+                textAlign = TextAlign.Center
+            )
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -136,8 +146,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         latestRecord?.let { record ->
             LastNightCard(
                 sleepTime = record.sleepTime,
-                alertCount = record.totalAlertCount,
-                hasEmergency = record.hasEmergency
+                alertCount = record.totalAlertCount
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -251,8 +260,7 @@ private fun StatusCard(
     monitorStartMinute: Int,
     monitorEndHour: Int,
     monitorEndMinute: Int,
-    isSkipped: Boolean,
-    isEmergency: Boolean
+    isSkipped: Boolean
 ) {
     val shape = RoundedCornerShape(24.dp)
 
@@ -307,22 +315,13 @@ private fun StatusCard(
             )
         }
 
-        if (isEmergency) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "今晚触发了紧急事项",
-                style = MaterialTheme.typography.bodySmall,
-                color = Coral
-            )
-        }
     }
 }
 
 @Composable
 private fun LastNightCard(
     sleepTime: Long?,
-    alertCount: Int,
-    hasEmergency: Boolean
+    alertCount: Int
 ) {
     val shape = RoundedCornerShape(24.dp)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -366,13 +365,6 @@ private fun LastNightCard(
                 value = "$alertCount 次",
                 color = if (alertCount > 3) Amber else MaterialTheme.colorScheme.onSurface
             )
-            if (hasEmergency) {
-                StatItem(
-                    label = "状态",
-                    value = "紧急",
-                    color = Coral
-                )
-            }
         }
     }
 }

@@ -1,18 +1,22 @@
 package com.sleepwatch.domain.usecase
 
 import com.sleepwatch.data.db.entity.Achievement
+import com.sleepwatch.data.db.entity.SleepRecord
+import com.sleepwatch.domain.monitoring.MonitoringStatus
+import com.sleepwatch.domain.monitoring.SleepStatisticsCalculator
 import com.sleepwatch.domain.repository.AchievementRepository
 import com.sleepwatch.domain.repository.SleepRecordRepository
 import kotlinx.coroutines.flow.first
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Clock
+import java.time.LocalDate
 import javax.inject.Inject
 
 class CheckAchievementsUseCase @Inject constructor(
     private val achievementRepository: AchievementRepository,
-    private val sleepRecordRepository: SleepRecordRepository
+    private val sleepRecordRepository: SleepRecordRepository,
+    private val clock: Clock
 ) {
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val calculator = SleepStatisticsCalculator(clock.zone)
 
     companion object {
         const val FIRST_EARLY_SLEEP = "first_early_sleep"
@@ -29,125 +33,93 @@ class CheckAchievementsUseCase @Inject constructor(
             FIRST_EARLY_SLEEP, STREAK_WEEK, STREAK_MONTH, STREAK_90,
             LOW_ALERT_WEEK, PERFECT_SCORE, EARLY_CHAMPION
         )
-        for (type in types) {
+        types.forEach { type ->
             if (achievementRepository.getByType(type) == null) {
                 achievementRepository.insert(Achievement(type = type))
             }
         }
     }
 
-    suspend fun checkAll(targetHour: Int, targetMinute: Int): List<String> {
+    suspend fun checkAll(): List<String> {
+        initializeAchievements()
+        val today = LocalDate.now(clock)
+        val allRecords = recordsBetween(LocalDate.of(2000, 1, 1), today)
+        val anchorDate = allRecords.maxOfOrNull { LocalDate.parse(it.date) } ?: today
+        val recent = allRecords.filter { LocalDate.parse(it.date) >= anchorDate.minusDays(89) }
         val newlyUnlocked = mutableListOf<String>()
-        val targetCal = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, targetHour)
-            set(Calendar.MINUTE, targetMinute)
-            set(Calendar.SECOND, 0)
-        }
-        val targetTimestamp = targetCal.timeInMillis
 
-        // FIRST_EARLY_SLEEP
         checkAndUnlock(FIRST_EARLY_SLEEP) {
-            val count = sleepRecordRepository.countEarlySleeps(targetTimestamp, "2000-01-01", "2099-12-31")
-            count > 0
-        }?.let { newlyUnlocked.add(it) }
+            allRecords.any(calculator::isGoalAchieved)
+        }?.let(newlyUnlocked::add)
+        checkAndUnlock(STREAK_WEEK) {
+            checkConsecutiveDays(recent, anchorDate, 7, STREAK_WEEK) { calculator.isGoalAchieved(it) }
+        }?.let(newlyUnlocked::add)
+        checkAndUnlock(STREAK_MONTH) {
+            checkConsecutiveDays(recent, anchorDate, 30, STREAK_MONTH) { calculator.isGoalAchieved(it) }
+        }?.let(newlyUnlocked::add)
+        checkAndUnlock(STREAK_90) {
+            checkConsecutiveDays(recent, anchorDate, 90, STREAK_90) { calculator.isGoalAchieved(it) }
+        }?.let(newlyUnlocked::add)
 
-        // STREAK_WEEK
-        checkAndUnlock(STREAK_WEEK) { checkConsecutiveDays(7, targetTimestamp, STREAK_WEEK) }?.let { newlyUnlocked.add(it) }
-
-        // STREAK_MONTH
-        checkAndUnlock(STREAK_MONTH) { checkConsecutiveDays(30, targetTimestamp, STREAK_MONTH) }?.let { newlyUnlocked.add(it) }
-
-        // STREAK_90
-        checkAndUnlock(STREAK_90) { checkConsecutiveDays(90, targetTimestamp, STREAK_90) }?.let { newlyUnlocked.add(it) }
-
-        // LOW_ALERT_WEEK
+        val lastWeek = recent.filter { LocalDate.parse(it.date) >= anchorDate.minusDays(6) }
+            .filter { it.status == MonitoringStatus.SLEEP_CONFIRMED.name }
         checkAndUnlock(LOW_ALERT_WEEK) {
-            val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -7) }
-            val startDate = dateFormat.format(cal.time)
-            val endDate = dateFormat.format(Date())
-            val records = mutableListOf<com.sleepwatch.data.db.entity.SleepRecord>()
-            sleepRecordRepository.getRecordsBetween(startDate, endDate).collect { records.addAll(it) }
-            val totalAlerts = records.sumOf { it.totalAlertCount }
-            totalAlerts in 0..5 && records.isNotEmpty()
-        }?.let { newlyUnlocked.add(it) }
-
-        // PERFECT_SCORE
+            lastWeek.isNotEmpty() && lastWeek.sumOf { it.totalAlertCount } <= 5
+        }?.let(newlyUnlocked::add)
         checkAndUnlock(PERFECT_SCORE) {
-            val today = dateFormat.format(Date())
-            val record = sleepRecordRepository.getByDate(today)
-            record?.sleepScore == 100f
-        }?.let { newlyUnlocked.add(it) }
-
-        // EARLY_CHAMPION
+            allRecords.any { it.status == MonitoringStatus.SLEEP_CONFIRMED.name && it.sleepScore == 100f }
+        }?.let(newlyUnlocked::add)
         checkAndUnlock(EARLY_CHAMPION) {
-            checkConsecutiveScoreDays(7, 90f, targetTimestamp)
-        }?.let { newlyUnlocked.add(it) }
+            checkConsecutiveDays(recent, anchorDate, 7, EARLY_CHAMPION) {
+                calculator.isGoalAchieved(it) && (it.sleepScore ?: 0f) >= 90f
+            }
+        }?.let(newlyUnlocked::add)
 
         return newlyUnlocked
     }
 
+    suspend fun consecutiveEarlyDaysThrough(record: SleepRecord): Int {
+        if (!calculator.isGoalAchieved(record)) return 0
+        val cycleDate = LocalDate.parse(record.date)
+        val byDate = recordsBetween(cycleDate.minusDays(19), cycleDate)
+            .groupBy { it.date }
+            .mapValues { (_, sameDate) ->
+                sameDate.firstOrNull(calculator::isGoalAchieved) ?: sameDate.last()
+            }
+        var count = 0
+        for (offset in 0 until 20) {
+            val candidate = byDate[cycleDate.minusDays(offset.toLong()).toString()]
+            if (candidate != null && calculator.isGoalAchieved(candidate)) count++ else break
+        }
+        return count
+    }
+
+    private suspend fun recordsBetween(start: LocalDate, end: LocalDate): List<SleepRecord> =
+        sleepRecordRepository.getRecordsBetween(start.toString(), end.toString()).first()
+
     private suspend fun checkAndUnlock(type: String, condition: suspend () -> Boolean): String? {
         val achievement = achievementRepository.getByType(type) ?: return null
-        if (achievement.unlockedAt != null) return null
-        if (condition()) {
-            achievementRepository.unlock(type, System.currentTimeMillis())
-            return type
-        }
-        return null
+        if (achievement.unlockedAt != null || !condition()) return null
+        achievementRepository.unlock(type, clock.millis())
+        return type
     }
 
-    private suspend fun checkConsecutiveDays(days: Int, targetTimestamp: Long, type: String): Boolean {
-        val endDate = dateFormat.format(Date())
-        val startDate = dateFormat.format(Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -days)
-        }.time)
-
-        // 一次性获取所有记录，避免多次数据库查询
-        val records = sleepRecordRepository.getRecordsBetween(startDate, endDate)
-            .first()
-            .associateBy { it.date }
-
-        val cal = Calendar.getInstance()
-        var consecutiveCount = 0
-        for (i in 0 until days) {
-            val date = dateFormat.format(cal.time)
-            val record = records[date]
-            if (record?.sleepTime != null && record.sleepTime <= targetTimestamp) {
-                consecutiveCount++
-            } else {
-                break // 遇到中断立即退出
-            }
-            cal.add(Calendar.DAY_OF_YEAR, -1)
+    private suspend fun checkConsecutiveDays(
+        records: List<SleepRecord>,
+        today: LocalDate,
+        days: Int,
+        type: String,
+        matches: (SleepRecord) -> Boolean
+    ): Boolean {
+        val byDate = records.groupBy { it.date }.mapValues { (_, sameDate) ->
+            sameDate.firstOrNull(matches) ?: sameDate.last()
         }
-        achievementRepository.updateProgress(type, consecutiveCount)
-        return consecutiveCount >= days
-    }
-
-    private suspend fun checkConsecutiveScoreDays(days: Int, minScore: Float, targetTimestamp: Long): Boolean {
-        val endDate = dateFormat.format(Date())
-        val startDate = dateFormat.format(Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, -days)
-        }.time)
-
-        // 一次性获取所有记录，避免多次数据库查询
-        val records = sleepRecordRepository.getRecordsBetween(startDate, endDate)
-            .first()
-            .associateBy { it.date }
-
-        val cal = Calendar.getInstance()
-        var consecutiveCount = 0
-        for (i in 0 until days) {
-            val date = dateFormat.format(cal.time)
-            val record = records[date]
-            if (record?.sleepScore != null && record.sleepScore >= minScore
-                && record.sleepTime != null && record.sleepTime <= targetTimestamp) {
-                consecutiveCount++
-            } else {
-                break // 遇到中断立即退出
-            }
-            cal.add(Calendar.DAY_OF_YEAR, -1)
+        var consecutive = 0
+        for (offset in 0 until days) {
+            val record = byDate[today.minusDays(offset.toLong()).toString()]
+            if (record != null && matches(record)) consecutive++ else break
         }
-        achievementRepository.updateProgress(EARLY_CHAMPION, consecutiveCount)
-        return consecutiveCount >= days
+        achievementRepository.updateProgress(type, consecutive)
+        return consecutive >= days
     }
 }

@@ -30,9 +30,9 @@ class AchievementsViewModel @Inject constructor(
         }
     }
 
-    fun checkAchievements(targetHour: Int, targetMinute: Int) {
+    fun checkAchievements() {
         viewModelScope.launch {
-            val unlocked = checkAchievementsUseCase.checkAll(targetHour, targetMinute)
+            val unlocked = checkAchievementsUseCase.checkAll()
             if (unlocked.isNotEmpty()) {
                 _newlyUnlocked.value = unlocked
             }

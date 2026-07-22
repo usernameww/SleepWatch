@@ -3,14 +3,13 @@ package com.sleepwatch.ui.statistics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.entity.SleepRecord
-import com.sleepwatch.data.datastore.SettingsDataStore
+import com.sleepwatch.domain.monitoring.SleepStatisticsCalculator
 import com.sleepwatch.domain.usecase.GetSleepRecordsUseCase
-import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Clock
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 enum class StatsPeriod { WEEK, MONTH, YEAR }
@@ -18,72 +17,41 @@ enum class StatsPeriod { WEEK, MONTH, YEAR }
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
     private val getSleepRecordsUseCase: GetSleepRecordsUseCase,
-    private val saveSleepRecordUseCase: SaveSleepRecordUseCase,
-    private val settingsDataStore: SettingsDataStore
+    private val clock: Clock
 ) : ViewModel() {
-
-    init {
-        viewModelScope.launch {
-            val startHour = settingsDataStore.monitorStartHour.first()
-            val startMinute = settingsDataStore.monitorStartMinute.first()
-            saveSleepRecordUseCase.getOrCreateTodayRecord(startHour, startMinute)
-        }
-    }
+    private val calculator = SleepStatisticsCalculator(clock.zone)
 
     private val _period = MutableStateFlow(StatsPeriod.WEEK)
     val period: StateFlow<StatsPeriod> = _period
-
-    val targetBedtimeHour = settingsDataStore.targetBedtimeHour
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 23)
-    val targetBedtimeMinute = settingsDataStore.targetBedtimeMinute
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val weekRecords: StateFlow<List<SleepRecord>> = getRecordsForPeriod(7)
     val monthRecords: StateFlow<List<SleepRecord>> = getRecordsForPeriod(30)
 
     val yearRecords: StateFlow<List<SleepRecord>> = flow {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.YEAR, -1)
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val startDate = sdf.format(cal.time)
-        val endDate = sdf.format(Date())
-        emitAll(getSleepRecordsUseCase.getRecordsBetween(startDate, endDate))
+        val today = LocalDate.now(clock)
+        emitAll(getSleepRecordsUseCase.getRecordsBetween(today.minusYears(1).toString(), today.toString()))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setPeriod(p: StatsPeriod) { _period.value = p }
 
     fun averageSleepTime(records: List<SleepRecord>): String {
-        val sleepTimes = records.mapNotNull { it.sleepTime }
-        if (sleepTimes.isEmpty()) return "--:--"
-        val avg = sleepTimes.average().toLong()
-        return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(avg))
+        return calculator.averageSleepTime(records)?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
     }
 
     fun averageScore(records: List<SleepRecord>): String {
-        val scores = records.mapNotNull { it.sleepScore }
-        if (scores.isEmpty()) return "--"
-        return String.format("%.1f", scores.average())
+        return calculator.averageScore(records)?.let { String.format("%.1f", it) } ?: "--"
     }
 
-    fun goalAchievedCount(records: List<SleepRecord>, targetHour: Int, targetMinute: Int): Int {
-        val cal = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, targetHour)
-            set(Calendar.MINUTE, targetMinute)
-            set(Calendar.SECOND, 0)
-        }
-        val targetTimestamp = cal.timeInMillis
-        return records.count { record ->
-            record.sleepTime != null && record.sleepTime <= targetTimestamp
-        }
-    }
+    fun goalAchievedCount(records: List<SleepRecord>): Int = calculator.goalAchievedCount(records)
+
+    fun goalAchievementRate(records: List<SleepRecord>): String =
+        calculator.goalAchievementRate(records)
+            ?.let { String.format("%.0f%%", it * 100) }
+            ?: "--"
 
     private fun getRecordsForPeriod(days: Int): StateFlow<List<SleepRecord>> {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.DAY_OF_YEAR, -days)
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val startDate = sdf.format(cal.time)
-        val endDate = sdf.format(Date())
-        return getSleepRecordsUseCase.getRecordsBetween(startDate, endDate)
+        val today = LocalDate.now(clock)
+        return getSleepRecordsUseCase.getRecordsBetween(today.minusDays((days - 1).toLong()).toString(), today.toString())
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 }

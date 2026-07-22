@@ -17,6 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,6 +29,7 @@ fun SetupScreen(
 ) {
     val permissions by viewModel.permissions.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val notificationTrigger by viewModel.notificationRequestTrigger.collectAsState()
 
     // Permission launcher for POST_NOTIFICATIONS
@@ -38,6 +42,14 @@ fun SetupScreen(
 
     LaunchedEffect(Unit) {
         viewModel.checkPermissions()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.checkPermissions()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Trigger notification permission request
@@ -55,7 +67,7 @@ fun SetupScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
                     .height(52.dp),
-                enabled = viewModel.allGranted()
+                enabled = viewModel.allRequiredGranted()
             ) {
                 Text("完成", style = MaterialTheme.typography.titleMedium)
             }
@@ -83,13 +95,7 @@ fun SetupScreen(
             itemsIndexed(permissions) { index, permission ->
                 PermissionCard(
                     permission = permission,
-                    onRequest = {
-                        permission.action()
-                        // Re-check after returning (for non-notification permissions)
-                        if (permission.name != "通知权限") {
-                            viewModel.checkPermissions()
-                        }
-                    }
+                    onRequest = permission.action
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -201,7 +207,11 @@ private fun PermissionCard(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = if (permission.isGranted) "已授权" else "未授权",
+                    text = when {
+                        permission.isGranted -> "已授权"
+                        permission.isRequired -> "未授权（必需）"
+                        else -> "未设置（推荐）"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (permission.isGranted)
                         MaterialTheme.colorScheme.primary

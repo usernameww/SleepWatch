@@ -2,26 +2,32 @@ package com.sleepwatch.ui.home
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.entity.SleepRecord
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.usecase.GetSleepRecordsUseCase
-import com.sleepwatch.domain.usecase.SaveSleepRecordUseCase
+import com.sleepwatch.domain.monitoring.MonitoringStatus
+import com.sleepwatch.domain.monitoring.MonitoringSettings
+import com.sleepwatch.domain.monitoring.MonitoringWindowResolver
 import com.sleepwatch.service.MonitorService
+import com.sleepwatch.service.MonitoringPermissionChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Clock
+import java.time.LocalTime
+import java.time.ZonedDateTime
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getSleepRecordsUseCase: GetSleepRecordsUseCase,
-    private val saveSleepRecordUseCase: SaveSleepRecordUseCase,
     private val settingsDataStore: SettingsDataStore,
+    private val permissionChecker: MonitoringPermissionChecker,
+    private val clock: Clock,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -31,11 +37,8 @@ class HomeViewModel @Inject constructor(
     val serviceEnabled: StateFlow<Boolean> = settingsDataStore.serviceEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val skippedDate: StateFlow<String?> = settingsDataStore.skippedDate
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-
-    val emergencyDate: StateFlow<String?> = settingsDataStore.emergencyDate
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    private val _permissionError = MutableStateFlow<String?>(null)
+    val permissionError: StateFlow<String?> = _permissionError.asStateFlow()
 
     val monitorStartTime: StateFlow<Pair<Int, Int>> = combine(
         settingsDataStore.monitorStartHour,
@@ -49,30 +52,33 @@ class HomeViewModel @Inject constructor(
     ) { hour, minute -> Pair(hour, minute) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(5, 0))
 
-    fun isTonightSkipped(): Boolean {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        return skippedDate.value == today
-    }
-
-    fun isTonightEmergency(): Boolean {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        return emergencyDate.value == today
+    fun isCurrentWindowSkipped(): Boolean {
+        val now = clock.instant()
+        val start = LocalTime.of(monitorStartTime.value.first, monitorStartTime.value.second)
+        val end = LocalTime.of(monitorEndTime.value.first, monitorEndTime.value.second)
+        val window = MonitoringWindowResolver(clock.zone).resolve(
+            ZonedDateTime.ofInstant(now, clock.zone),
+            MonitoringSettings(start, end, start, 10, 3)
+        )
+        return window.isActiveAt(now) &&
+            latestRecord.value?.date == window.cycleDate.toString() &&
+            latestRecord.value?.status == MonitoringStatus.SKIPPED.name
     }
 
     fun toggleService(enabled: Boolean) {
         viewModelScope.launch {
-            settingsDataStore.setServiceEnabled(enabled)
             if (enabled) {
-                val intent = Intent(context, MonitorService::class.java).apply {
-                    action = MonitorService.ACTION_START
+                permissionChecker.missingRequiredMessage()?.let { message ->
+                    _permissionError.value = message
+                    return@launch
                 }
-                context.startForegroundService(intent)
-            } else {
-                val intent = Intent(context, MonitorService::class.java).apply {
-                    action = MonitorService.ACTION_STOP
-                }
-                context.startForegroundService(intent)
             }
+            _permissionError.value = null
+            settingsDataStore.setServiceEnabled(enabled)
+            val intent = Intent(context, MonitorService::class.java).apply {
+                action = if (enabled) MonitorService.ACTION_START else MonitorService.ACTION_STOP
+            }
+            ContextCompat.startForegroundService(context, intent)
         }
     }
 }

@@ -1,14 +1,9 @@
 package com.sleepwatch.ui.alert
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.domain.usecase.GetAlertMessagesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.*
 import javax.inject.Inject
 
 data class AlertInfo(
@@ -21,23 +16,15 @@ data class AlertInfo(
 
 @HiltViewModel
 class AlertViewModel @Inject constructor(
-    private val getAlertMessagesUseCase: GetAlertMessagesUseCase,
-    private val settingsDataStore: SettingsDataStore
+    private val getAlertMessagesUseCase: GetAlertMessagesUseCase
 ) : ViewModel(), AlertViewModelInterface {
 
-    val messages = getAlertMessagesUseCase.getEnabledMessages()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    private var currentLevel = 0
-
-    override fun getNextMessage(): AlertInfo {
-        val allMessages = messages.value
+    override suspend fun getNextMessage(): AlertInfo {
+        val allMessages = getAlertMessagesUseCase.getEnabledMessages().first()
         if (allMessages.isEmpty()) {
             return AlertInfo("该睡觉了", "请放下手机休息", "", 1, 1)
         }
-        currentLevel = (currentLevel % allMessages.size)
-        val msg = allMessages[currentLevel]
-        currentLevel++
+        val msg = allMessages.first()
         return AlertInfo(
             title = msg.title,
             content = msg.content,
@@ -47,10 +34,4 @@ class AlertViewModel @Inject constructor(
         )
     }
 
-    override fun skipTonight() {
-        viewModelScope.launch {
-            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            settingsDataStore.setSkippedDate(today)
-        }
-    }
 }

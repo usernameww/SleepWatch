@@ -2,7 +2,6 @@ package com.sleepwatch.ui.setup
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,7 +9,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,6 +39,7 @@ class SetupViewModel @Inject constructor(
             items.add(PermissionItem(
                 name = "通知权限",
                 description = "允许发送睡眠提醒通知",
+                isRequired = true,
                 isGranted = granted,
                 action = { _notificationRequestTrigger.value = true }
             ))
@@ -50,6 +49,7 @@ class SetupViewModel @Inject constructor(
         items.add(PermissionItem(
             name = "悬浮窗权限",
             description = "显示全屏睡眠提醒弹窗",
+            isRequired = true,
             isGranted = Settings.canDrawOverlays(context),
             action = { requestOverlayPermission() }
         ))
@@ -60,19 +60,9 @@ class SetupViewModel @Inject constructor(
             items.add(PermissionItem(
                 name = "精确闹钟权限",
                 description = "精确唤醒睡眠检测",
+                isRequired = true,
                 isGranted = alarmManager.canScheduleExactAlarms(),
                 action = { requestExactAlarmPermission() }
-            ))
-        }
-
-        // Full screen intent (Android 14+)
-        if (Build.VERSION.SDK_INT >= 34) {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            items.add(PermissionItem(
-                name = "全屏提醒权限",
-                description = "后台弹出全屏睡眠提醒",
-                isGranted = notificationManager.canUseFullScreenIntent(),
-                action = { requestFullScreenIntentPermission() }
             ))
         }
 
@@ -81,7 +71,8 @@ class SetupViewModel @Inject constructor(
         val batteryIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName)
         items.add(PermissionItem(
             name = "电池优化白名单",
-            description = "防止系统杀死监测服务",
+            description = "建议设为无限制，以提高 HyperOS 后台可靠性",
+            isRequired = false,
             isGranted = batteryIgnored,
             action = { requestBatteryOptimization() }
         ))
@@ -93,7 +84,8 @@ class SetupViewModel @Inject constructor(
         _notificationRequestTrigger.value = false
     }
 
-    fun allGranted(): Boolean = _permissions.value.all { it.isGranted }
+    fun allRequiredGranted(): Boolean =
+        _permissions.value.filter { it.isRequired }.all { it.isGranted }
 
     private fun requestOverlayPermission() {
         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
@@ -114,27 +106,17 @@ class SetupViewModel @Inject constructor(
     }
 
     private fun requestBatteryOptimization() {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            data = Uri.parse("package:${context.packageName}")
+        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-    }
-
-    private fun requestFullScreenIntentPermission() {
-        if (Build.VERSION.SDK_INT >= 31) {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-        }
     }
 }
 
 data class PermissionItem(
     val name: String,
     val description: String,
+    val isRequired: Boolean,
     val isGranted: Boolean,
     val action: () -> Unit
 )

@@ -2,7 +2,6 @@ package com.sleepwatch.ui.alert
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -27,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.core.content.ContextCompat
 import com.sleepwatch.ui.theme.SleepWatchTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
@@ -38,37 +38,28 @@ class AlertActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Show over lock screen and turn on display
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
-        }
-
         setContent {
             SleepWatchTheme {
-                AlertScreen(onDismiss = {
-                    // Notify MonitorService that alert was dismissed
-                    val intent = Intent(this, com.sleepwatch.service.MonitorService::class.java).apply {
-                        action = com.sleepwatch.service.MonitorService.ACTION_ALERT_DISMISSED
+                AlertRoute(
+                    onDismiss = { finish() },
+                    onSkip = {
+                        ContextCompat.startForegroundService(
+                            this,
+                            Intent(this, com.sleepwatch.service.MonitorService::class.java)
+                                .setAction(com.sleepwatch.service.MonitorService.ACTION_SKIP)
+                        )
+                        finish()
                     }
-                    startService(intent)
-                    finish()
-                })
+                )
             }
         }
     }
 }
 
 @Composable
-fun AlertScreen(
+private fun AlertRoute(
     onDismiss: () -> Unit,
+    onSkip: () -> Unit,
     viewModel: AlertViewModelInterface = hiltViewModel<AlertViewModel>()
 ) {
     val alertInfo = remember { mutableStateOf<AlertInfo?>(null) }
@@ -76,6 +67,20 @@ fun AlertScreen(
     LaunchedEffect(Unit) {
         alertInfo.value = viewModel.getNextMessage()
     }
+
+    AlertScreen(
+        info = alertInfo.value,
+        onDismiss = onDismiss,
+        onSkip = onSkip
+    )
+}
+
+@Composable
+fun AlertScreen(
+    info: AlertInfo?,
+    onDismiss: () -> Unit,
+    onSkip: () -> Unit
+) {
 
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -86,8 +91,6 @@ fun AlertScreen(
     }
 
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val info = alertInfo.value
-
     // Pulse animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -133,8 +136,7 @@ fun AlertScreen(
         // Skip button - TOP LEFT
         TextButton(
             onClick = {
-                viewModel.skipTonight()
-                onDismiss()
+                onSkip()
             },
             modifier = Modifier
                 .align(Alignment.TopStart)

@@ -28,8 +28,6 @@ class SettingsDataStore @Inject constructor(
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val SERVICE_ENABLED = booleanPreferencesKey("service_enabled")
-        val SKIPPED_DATE = stringPreferencesKey("skipped_date")
-        val EMERGENCY_DATE = stringPreferencesKey("emergency_date")
     }
 
     val monitorStartHour: Flow<Int> = context.dataStore.data.map { it[Keys.MONITOR_START_HOUR] ?: 0 }
@@ -43,8 +41,6 @@ class SettingsDataStore @Inject constructor(
     val soundEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.SOUND_ENABLED] ?: true }
     val vibrationEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.VIBRATION_ENABLED] ?: true }
     val serviceEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.SERVICE_ENABLED] ?: false }
-    val skippedDate: Flow<String?> = context.dataStore.data.map { it[Keys.SKIPPED_DATE] }
-    val emergencyDate: Flow<String?> = context.dataStore.data.map { it[Keys.EMERGENCY_DATE] }
 
     suspend fun setMonitorStartTime(hour: Int, minute: Int) {
         context.dataStore.edit {
@@ -87,24 +83,4 @@ class SettingsDataStore @Inject constructor(
         context.dataStore.edit { it[Keys.SERVICE_ENABLED] = enabled }
     }
 
-    suspend fun setSkippedDate(date: String?) {
-        context.dataStore.edit {
-            if (date != null) it[Keys.SKIPPED_DATE] = date
-            else it.remove(Keys.SKIPPED_DATE)
-        }
-    }
-
-    suspend fun setEmergencyDate(date: String?) {
-        context.dataStore.edit {
-            if (date != null) it[Keys.EMERGENCY_DATE] = date
-            else it.remove(Keys.EMERGENCY_DATE)
-        }
-    }
-
-    suspend fun clearSkippedAndEmergency() {
-        context.dataStore.edit {
-            it.remove(Keys.SKIPPED_DATE)
-            it.remove(Keys.EMERGENCY_DATE)
-        }
-    }
 }

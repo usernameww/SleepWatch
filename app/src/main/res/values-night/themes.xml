@@ -33,5 +33,4 @@
     <color name="sleep_score_good">#81C784</color>
     <color name="sleep_score_medium">#FFD54F</color>
     <color name="sleep_score_bad">#EF5350</color>
-    <color name="emergency_color">#FF7043</color>
 </resources>

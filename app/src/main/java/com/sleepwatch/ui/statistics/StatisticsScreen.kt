@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sleepwatch.data.db.entity.SleepRecord
+import com.sleepwatch.domain.monitoring.MonitoringStatus
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,8 +26,6 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
     val weekRecords by viewModel.weekRecords.collectAsState()
     val monthRecords by viewModel.monthRecords.collectAsState()
     val yearRecords by viewModel.yearRecords.collectAsState()
-    val targetHour by viewModel.targetBedtimeHour.collectAsState()
-    val targetMinute by viewModel.targetBedtimeMinute.collectAsState()
 
     val currentRecords = when (period) {
         StatsPeriod.WEEK -> weekRecords
@@ -73,7 +72,7 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
         ) {
             StatCard(modifier = Modifier.weight(1f), title = "平均入睡", value = viewModel.averageSleepTime(currentRecords))
             StatCard(modifier = Modifier.weight(1f), title = "平均评分", value = viewModel.averageScore(currentRecords))
-            StatCard(modifier = Modifier.weight(1f), title = "达标天数", value = "${viewModel.goalAchievedCount(currentRecords, targetHour, targetMinute)}")
+            StatCard(modifier = Modifier.weight(1f), title = "达标率", value = viewModel.goalAchievementRate(currentRecords))
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -106,7 +105,7 @@ fun StatisticsScreen(viewModel: StatisticsViewModel = hiltViewModel()) {
                     )
                 } else {
                     when (period) {
-                        StatsPeriod.WEEK -> WeekChart(currentRecords, targetHour, targetMinute)
+                        StatsPeriod.WEEK -> WeekChart(currentRecords)
                         StatsPeriod.MONTH -> MonthChart(currentRecords)
                         StatsPeriod.YEAR -> YearChart(currentRecords)
                     }
@@ -160,7 +159,7 @@ private fun StatCard(modifier: Modifier, title: String, value: String) {
 }
 
 @Composable
-private fun WeekChart(records: List<SleepRecord>, targetHour: Int, targetMinute: Int) {
+private fun WeekChart(records: List<SleepRecord>) {
     val dayFormat = SimpleDateFormat("E", Locale.getDefault())
     val chartHeight = 180.dp
     val maxValue = 24 * 60
@@ -186,7 +185,10 @@ private fun WeekChart(records: List<SleepRecord>, targetHour: Int, targetMinute:
                 ) {
                     if (minutes != null) {
                         val barHeight = (minutes.toFloat() / maxValue * chartHeight.value).dp
-                        val isEarly = minutes <= targetHour * 60 + targetMinute
+                        val isEarly = record.status == MonitoringStatus.SLEEP_CONFIRMED.name &&
+                            sleepTime?.let { actual ->
+                                record.targetBedtimeTime?.let { target -> actual <= target }
+                            } == true
                         Box(
                             modifier = Modifier
                                 .width(24.dp)
@@ -238,7 +240,10 @@ private fun MonthChart(records: List<SleepRecord>) {
                     val dayNum = week * 7 + day
                     if (dayNum in 1..daysInMonth) {
                         val key = String.format("%02d", dayNum)
-                        val score = recordMap[key]?.sleepScore
+                        val record = recordMap[key]
+                        val score = record?.sleepScore?.takeIf {
+                            record.status == MonitoringStatus.SLEEP_CONFIRMED.name
+                        }
                         val color = when {
                             score == null -> MaterialTheme.colorScheme.surfaceVariant
                             score >= 80 -> MaterialTheme.colorScheme.primary
@@ -288,7 +293,9 @@ private fun YearChart(records: List<SleepRecord>) {
             verticalAlignment = Alignment.Bottom
         ) {
             monthRecords.forEach { (month, recs) ->
-                val avgScore = recs.mapNotNull { it.sleepScore }.average()
+                val avgScore = recs.filter { it.status == MonitoringStatus.SLEEP_CONFIRMED.name }
+                    .mapNotNull { it.sleepScore }
+                    .average()
                 val barHeight = if (avgScore.isNaN()) 0.dp else (avgScore / 100 * 140).dp
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -313,7 +320,15 @@ private fun YearChart(records: List<SleepRecord>) {
 private fun RecordRow(record: SleepRecord) {
     val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-    val isSkipped = record.sleepTime == null && record.totalAlertCount > 0
+    val status = runCatching { MonitoringStatus.valueOf(record.status) }
+        .getOrDefault(MonitoringStatus.INCOMPLETE)
+    val statusText = when (status) {
+        MonitoringStatus.SKIPPED -> "已跳过"
+        MonitoringStatus.INCOMPLETE -> "未确认"
+        MonitoringStatus.ENDED_BY_CONFIG_CHANGE -> "配置已变更"
+        MonitoringStatus.MONITORING -> "监测中"
+        MonitoringStatus.SLEEP_CONFIRMED -> null
+    }
 
     Row(
         modifier = Modifier
@@ -325,8 +340,8 @@ private fun RecordRow(record: SleepRecord) {
         Text(text = dateFormat.format(Date(record.monitorStartTime)), style = MaterialTheme.typography.bodyMedium)
         record.sleepTime?.let {
             Text(text = timeFormat.format(Date(it)), style = MaterialTheme.typography.bodyMedium)
-        } ?: if (isSkipped) {
-            Text("已跳过", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
+        } ?: if (statusText != null) {
+            Text(statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
         } else {
             Text("--:--", style = MaterialTheme.typography.bodyMedium)
         }
@@ -342,8 +357,8 @@ private fun RecordRow(record: SleepRecord) {
                 fontWeight = FontWeight.Bold,
                 color = color
             )
-        } ?: if (isSkipped) {
-            Text("跳过", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
+        } ?: if (statusText != null) {
+            Text(statusText, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.tertiary)
         } else {
             Text("--", style = MaterialTheme.typography.bodyMedium)
         }

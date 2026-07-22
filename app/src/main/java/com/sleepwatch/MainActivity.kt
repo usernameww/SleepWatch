@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
+import androidx.core.content.ContextCompat
 import com.sleepwatch.data.datastore.SettingsDataStore
 import com.sleepwatch.service.MonitorService
 import com.sleepwatch.ui.navigation.NavGraph
@@ -32,9 +33,9 @@ class MainActivity : ComponentActivity() {
                 if (enabled) {
                     Log.d("MainActivity", "Restoring MonitorService...")
                     val intent = Intent(this@MainActivity, MonitorService::class.java).apply {
-                        action = MonitorService.ACTION_START
+                        action = MonitorService.ACTION_RECONCILE
                     }
-                    startService(intent)
+                    ContextCompat.startForegroundService(this@MainActivity, intent)
                     Log.d("MainActivity", "MonitorService started successfully")
                 }
             } catch (e: Exception) {

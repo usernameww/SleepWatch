@@ -1,131 +1,37 @@
 # SleepWatch 开发进度
 
-> 最后更新：2026-07-14
+> 最后更新：2026-07-23
 
-## 总体进度
+## 当前状态
 
-| 阶段 | 状态 | 进度 |
-|------|------|------|
-| Phase 1 — 核心监测 (MVP) | 进行中 | 80% |
-| Phase 2 — 消息与配置 | 未开始 | 0% |
-| Phase 3 — 统计与分析 | 未开始 | 0% |
-| Phase 4 — 成就与打磨 | 未开始 | 0% |
+核心监测可靠性重构已进入构建与真机验收阶段。纯业务单元测试和 Android 迁移测试编译已通过。
 
 ## 已完成
 
-- [x] 需求分析与架构设计
-- [x] 技术栈选型确认
-- [x] Gradle 构建系统搭建
-  - [x] `gradle/libs.versions.toml` 版本目录
-  - [x] `build.gradle.kts` 根构建文件
-  - [x] `settings.gradle.kts` 设置文件
-  - [x] `gradle.properties` 属性文件
-  - [x] `app/build.gradle.kts` 应用构建文件
-- [x] 需求文档归档 (`docs/REQUIREMENTS.md`)
-- [x] 需求文档补充完善（导航结构、紧急事项、通知渠道、状态机边界、Android 适配、测试策略）
-- [x] Phase 1 源代码实现
-  - [x] 数据层：Entity（含 hasEmergency）、DAO、Database、DataStore（含 skippedDate/emergencyDate）、Repository
-  - [x] 领域层：Repository 接口、UseCase（GetSleepRecords、SaveSleepRecord、GetAlertMessages、CheckAchievements）
-  - [x] DI 模块：AppModule、DatabaseModule、RepositoryModule
-  - [x] 服务层：MonitorService、MonitorStateMachine、AlarmScheduler、ScreenReceiver、BootReceiver
-  - [x] UI 层：Theme、Navigation（BottomNav 4 Tab）、HomeScreen、AlertActivity、占位页面
-  - [x] 资源：AndroidManifest.xml、strings.xml、themes.xml、colors.xml
-  - [x] Git 仓库初始化
+- [x] `MonitoringWindowResolver`：普通/跨午夜/跨月年窗口与具体目标时间。
+- [x] `MonitoringEngine`：定时检查、解锁打断、首次未使用时间确认、跳过/结束/即时配置。
+- [x] Room v2 显式迁移、持久化会话恢复字段和唯一周期约束。
+- [x] 窗口开始/检测/结束独立闹钟，开机、更新、时间和权限变化对账。
+- [x] 前台服务仅在窗口内运行；移除整夜 WakeLock、`START_STICKY` 和任务移除自启。
+- [x] 独立生命周期悬浮窗、提醒防叠加和高优先级通知降级。
+- [x] 启用前权限硬检查；电池无限制与 HyperOS 自启动改为推荐步骤。
+- [x] 设置即时生效，保留当前周期数据并按新间隔、阈值和结束时间继续。
+- [x] 评分、统计、跨午夜平均和成就改用每条记录的具体目标时间。
+- [x] 移除紧急事项、旧息屏广播状态机及相关死代码。
+- [x] 更新需求文档与 Room schema。
 
-## 进行中
+## 自动化验证
 
-- [ ] Phase 1 剩余工作
-  - [ ] 缺少 gradle-wrapper.jar（需 Android Studio 或 Gradle 安装后生成）
-  - [ ] 渐进式消息默认数据（AlertMessage 预设 5 级消息插入）
-  - [ ] 真机测试验证
-  - [ ] 权限引导页（Setup）实现
+- [x] 普通/跨午夜/跨年窗口。
+- [x] 1 与 60 分钟间隔、1 与 10 次阈值边界。
+- [x] 解锁打断、重复检查幂等、第三次确认记录第一次时间。
+- [x] 未确认结束、跳过、窗口外配置变更和降低阈值立即确认。
+- [x] 提醒消息循环、持久化映射、评分和历史目标统计。
+- [x] Room v1→v2 迁移测试已编写且可编译。
 
-## 文件清单（已创建）
+## 仍需验收
 
-```
-SleepWatch/
-├── .gitignore                          ✅
-├── gradlew / gradlew.bat               ✅
-├── gradle/wrapper/                     ✅ (jar 需补充)
-├── docs/
-│   ├── REQUIREMENTS.md                 ✅ 需求文档
-│   └── PROGRESS.md                     ✅ 进度文档
-├── build.gradle.kts                    ✅ 根构建
-├── settings.gradle.kts                 ✅ 设置
-├── gradle.properties                   ✅ 属性
-├── gradle/libs.versions.toml           ✅ 版本目录
-└── app/
-    ├── build.gradle.kts                ✅ 应用构建
-    ├── proguard-rules.pro              ✅
-    └── src/main/
-        ├── AndroidManifest.xml         ✅
-        ├── java/com/sleepwatch/
-        │   ├── SleepWatchApp.kt        ✅
-        │   ├── MainActivity.kt         ✅
-        │   ├── di/{AppModule,DatabaseModule,RepositoryModule}.kt  ✅
-        │   ├── data/                   ✅ (Entity, DAO, Database, DataStore, Repository)
-        │   ├── domain/                 ✅ (Repository 接口, UseCase)
-        │   ├── service/                ✅ (MonitorService, StateMachine, AlarmScheduler, Receivers)
-        │   └── ui/                     ✅ (Theme, Navigation, Home, Alert, 占位页面)
-        └── res/values/                 ✅ (strings, themes, colors)
-```
-
-## 待创建文件清单
-
-```
-项目根目录/
-├── .gitignore
-├── gradlew
-├── gradlew.bat
-├── gradle/wrapper/gradle-wrapper.jar
-├── gradle/wrapper/gradle-wrapper.properties
-└── app/
-    ├── proguard-rules.pro
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── java/com/sleepwatch/
-        │   ├── SleepWatchApp.kt
-        │   ├── MainActivity.kt
-        │   ├── di/
-        │   │   ├── AppModule.kt
-        │   │   ├── DatabaseModule.kt
-        │   │   └── RepositoryModule.kt
-        │   ├── data/
-        │   │   ├── db/
-        │   │   │   ├── SleepWatchDatabase.kt
-        │   │   │   ├── entity/SleepRecord.kt, AlertMessage.kt, Achievement.kt
-        │   │   │   └── dao/SleepRecordDao.kt, AlertMessageDao.kt, AchievementDao.kt
-        │   │   ├── datastore/SettingsDataStore.kt
-        │   │   └── repository/
-        │   ├── domain/
-        │   │   ├── model/
-        │   │   ├── usecase/
-        │   │   │   ├── MonitorUseCase.kt
-        │   │   │   ├── SleepRecordUseCase.kt
-        │   │   │   └── AchievementUseCase.kt
-        │   │   └── repository/
-        │   ├── service/
-        │   │   ├── MonitorService.kt
-        │   │   ├── MonitorStateMachine.kt
-        │   │   ├── AlarmScheduler.kt
-        │   │   └── receiver/
-        │   ├── ui/
-        │   │   ├── navigation/NavGraph.kt
-        │   │   ├── theme/
-        │   │   ├── home/
-        │   │   ├── settings/
-        │   │   ├── statistics/
-        │   │   ├── achievements/
-        │   │   ├── setup/
-        │   │   └── alert/AlertActivity.kt
-        │   └── util/
-        └── res/
-            ├── values/
-            │   ├── strings.xml
-            │   ├── themes.xml
-            │   └── colors.xml
-            ├── values-night/
-            │   └── themes.xml
-            ├── drawable/
-            └── xml/
-```
+- [ ] 在设备/模拟器运行 Room migration instrumentation test。
+- [ ] HyperOS 2 / Android 15：亮屏解锁提醒、锁屏不提醒、Doze/重启/系统回收恢复。
+- [ ] 验证“强行停止”后不会虚假自启，重新打开应用后能恢复调度。
+- [ ] 连续两个真实夜间周期自动运行。

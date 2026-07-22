@@ -2,6 +2,7 @@ package com.sleepwatch.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepwatch.data.db.DefaultData
@@ -10,6 +11,7 @@ import com.sleepwatch.domain.repository.AchievementRepository
 import com.sleepwatch.domain.repository.AlertMessageRepository
 import com.sleepwatch.domain.repository.SleepRecordRepository
 import com.sleepwatch.service.MonitorService
+import com.sleepwatch.service.MonitoringPermissionChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -22,6 +24,7 @@ class SettingsViewModel @Inject constructor(
     private val sleepRecordRepository: SleepRecordRepository,
     private val alertMessageRepository: AlertMessageRepository,
     private val achievementRepository: AchievementRepository,
+    private val permissionChecker: MonitoringPermissionChecker,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -47,42 +50,41 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val serviceEnabled = settingsDataStore.serviceEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val skippedDate = settingsDataStore.skippedDate
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    val emergencyDate = settingsDataStore.emergencyDate
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    private val _permissionError = MutableStateFlow<String?>(null)
+    val permissionError: StateFlow<String?> = _permissionError.asStateFlow()
 
     fun setMonitorStartTime(hour: Int, minute: Int) {
         viewModelScope.launch {
             settingsDataStore.setMonitorStartTime(hour, minute)
-            restartServiceIfEnabled()
+            reconfigureServiceIfEnabled()
         }
     }
 
     fun setMonitorEndTime(hour: Int, minute: Int) {
         viewModelScope.launch {
             settingsDataStore.setMonitorEndTime(hour, minute)
-            restartServiceIfEnabled()
+            reconfigureServiceIfEnabled()
         }
     }
 
     fun setCheckInterval(minutes: Int) {
         viewModelScope.launch {
             settingsDataStore.setCheckInterval(minutes)
-            restartServiceIfEnabled()
+            reconfigureServiceIfEnabled()
         }
     }
 
     fun setScreenOffThreshold(count: Int) {
         viewModelScope.launch {
             settingsDataStore.setScreenOffThreshold(count)
-            restartServiceIfEnabled()
+            reconfigureServiceIfEnabled()
         }
     }
 
     fun setTargetBedtime(hour: Int, minute: Int) {
         viewModelScope.launch {
             settingsDataStore.setTargetBedtime(hour, minute)
+            reconfigureServiceIfEnabled()
         }
     }
 
@@ -96,18 +98,18 @@ class SettingsViewModel @Inject constructor(
 
     fun setServiceEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsDataStore.setServiceEnabled(enabled)
             if (enabled) {
-                val intent = Intent(context, MonitorService::class.java).apply {
-                    action = MonitorService.ACTION_START
+                permissionChecker.missingRequiredMessage()?.let { message ->
+                    _permissionError.value = message
+                    return@launch
                 }
-                context.startForegroundService(intent)
-            } else {
-                val intent = Intent(context, MonitorService::class.java).apply {
-                    action = MonitorService.ACTION_STOP
-                }
-                context.startForegroundService(intent)
             }
+            _permissionError.value = null
+            settingsDataStore.setServiceEnabled(enabled)
+            val intent = Intent(context, MonitorService::class.java).apply {
+                action = if (enabled) MonitorService.ACTION_START else MonitorService.ACTION_STOP
+            }
+            ContextCompat.startForegroundService(context, intent)
         }
     }
 
@@ -117,24 +119,16 @@ class SettingsViewModel @Inject constructor(
             alertMessageRepository.deleteAll()
             alertMessageRepository.insertAll(DefaultData.alertMessages)
             achievementRepository.deleteAll()
-            settingsDataStore.clearSkippedAndEmergency()
         }
     }
 
-    private suspend fun restartServiceIfEnabled() {
+    private suspend fun reconfigureServiceIfEnabled() {
         val enabled = settingsDataStore.serviceEnabled.first()
         if (enabled) {
-            // Stop then restart to apply new settings
-            val stopIntent = Intent(context, MonitorService::class.java).apply {
-                action = MonitorService.ACTION_STOP
+            val intent = Intent(context, MonitorService::class.java).apply {
+                action = MonitorService.ACTION_RECONFIGURE
             }
-            context.startService(stopIntent)
-            // Small delay to ensure stop completes
-            kotlinx.coroutines.delay(200)
-            val startIntent = Intent(context, MonitorService::class.java).apply {
-                action = MonitorService.ACTION_START
-            }
-            context.startForegroundService(startIntent)
+            ContextCompat.startForegroundService(context, intent)
         }
     }
 }

@@ -17,6 +17,12 @@ class SleepRecordRepositoryImpl @Inject constructor(
     override suspend fun update(record: SleepRecord) = dao.update(record)
 
     override suspend fun getByDate(date: String): SleepRecord? = dao.getByDate(date)
+    override suspend fun getByMonitorStartTime(monitorStartTime: Long): SleepRecord? =
+        dao.getByMonitorStartTime(monitorStartTime)
+
+    override suspend fun getById(id: Long): SleepRecord? = dao.getById(id)
+
+    override suspend fun getActiveRecord(): SleepRecord? = dao.getActiveRecord()
 
     override fun getByDateFlow(date: String): Flow<SleepRecord?> = dao.getByDateFlow(date)
 
@@ -24,9 +30,6 @@ class SleepRecordRepositoryImpl @Inject constructor(
 
     override fun getRecordsBetween(startDate: String, endDate: String): Flow<List<SleepRecord>> =
         dao.getRecordsBetween(startDate, endDate)
-
-    override suspend fun countEarlySleeps(targetTimestamp: Long, startDate: String, endDate: String): Int =
-        dao.countEarlySleeps(targetTimestamp, startDate, endDate)
 
     override fun getLatestRecord(): Flow<SleepRecord?> = dao.getLatestRecord()
 

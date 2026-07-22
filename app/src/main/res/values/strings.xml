@@ -19,7 +19,6 @@
     <string name="alert_title">该睡觉了</string>
     <string name="alert_dismiss">我知道了</string>
     <string name="alert_skip_tonight">今晚不再提醒</string>
-    <string name="alert_emergency">有紧急事项</string>
 
     <!-- Service -->
     <string name="monitor_channel_name">睡眠监测</string>
