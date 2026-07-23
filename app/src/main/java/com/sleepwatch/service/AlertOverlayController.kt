@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.sleepwatch.ui.alert.AlertInfo
 import com.sleepwatch.ui.alert.AlertScreen
 
@@ -26,6 +27,7 @@ class AlertOverlayController(private val context: Context) {
             val owner = ServiceLifecycleOwner()
             val view = ComposeView(context).apply {
                 setViewTreeLifecycleOwner(owner)
+                setViewTreeSavedStateRegistryOwner(owner)
                 setContent {
                     AlertScreen(
                         info = info,
