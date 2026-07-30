@@ -8,8 +8,10 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material3.*
@@ -103,7 +105,9 @@ fun AlertScreen(
         label = "pulseScale"
     )
 
-    Box(
+    val landscapeScrollState = rememberScrollState()
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(
@@ -116,6 +120,11 @@ fun AlertScreen(
                 )
             )
     ) {
+        val isLandscape = maxWidth > maxHeight
+        val iconSize = if (isLandscape) 56.dp else 80.dp
+        val iconGlyphSize = if (isLandscape) 28.dp else 36.dp
+        val dismissBottomPadding = if (isLandscape) 12.dp else 48.dp
+
         // Subtle radial glow
         Box(
             modifier = Modifier
@@ -140,7 +149,7 @@ fun AlertScreen(
             },
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 48.dp)
+                .padding(start = 16.dp, top = if (isLandscape) 4.dp else 48.dp)
         ) {
             Text(
                 text = "今晚不再提醒",
@@ -150,17 +159,25 @@ fun AlertScreen(
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp)
-                .padding(top = 100.dp, bottom = 48.dp),
+            modifier = if (isLandscape) {
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(landscapeScrollState)
+                    .padding(horizontal = 96.dp)
+                    .padding(top = 16.dp, bottom = 84.dp)
+            } else {
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 32.dp)
+                    .padding(top = 100.dp, bottom = 124.dp)
+            },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = if (isLandscape) Arrangement.Top else Arrangement.Center
         ) {
             // Icon
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(iconSize)
                     .scale(pulseScale)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.06f))
@@ -170,24 +187,27 @@ fun AlertScreen(
                 Icon(
                     imageVector = Icons.Default.Bedtime,
                     contentDescription = null,
-                    modifier = Modifier.size(36.dp),
+                    modifier = Modifier.size(iconGlyphSize),
                     tint = Color(0xFF7EC8A0)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 24.dp))
 
             // Time
             Text(
                 text = timeFormat.format(Date(currentTime)),
-                style = MaterialTheme.typography.displayMedium.copy(
+                style = (
+                    if (isLandscape) MaterialTheme.typography.displaySmall
+                    else MaterialTheme.typography.displayMedium
+                ).copy(
                     fontWeight = FontWeight.ExtraLight,
                     letterSpacing = (-2).sp
                 ),
                 color = Color(0xFFF0ECE3)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 32.dp))
 
             // Message title with level indicator
             if (info != null) {
@@ -212,25 +232,31 @@ fun AlertScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 8.dp))
 
                 Text(
                     text = info.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(
+                    style = (
+                        if (isLandscape) MaterialTheme.typography.titleLarge
+                        else MaterialTheme.typography.headlineSmall
+                    ).copy(
                         fontWeight = FontWeight.Light,
                         letterSpacing = 1.sp
                     ),
                     color = Color(0xFF7EC8A0)
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 24.dp))
 
                 // Message content card
                 val msgShape = RoundedCornerShape(20.dp)
                 Text(
                     text = info.content,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        lineHeight = 28.sp
+                    style = (
+                        if (isLandscape) MaterialTheme.typography.bodyMedium
+                        else MaterialTheme.typography.bodyLarge
+                    ).copy(
+                        lineHeight = if (isLandscape) 22.sp else 28.sp
                     ),
                     color = Color(0xFFF0ECE3).copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
@@ -239,12 +265,15 @@ fun AlertScreen(
                         .clip(msgShape)
                         .background(Color.White.copy(alpha = 0.04f))
                         .border(0.5.dp, Color.White.copy(alpha = 0.06f), msgShape)
-                        .padding(horizontal = 24.dp, vertical = 20.dp)
+                        .padding(
+                            horizontal = 24.dp,
+                            vertical = if (isLandscape) 10.dp else 20.dp
+                        )
                 )
 
                 // Health tip
                 if (info.healthTip.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 6.dp else 16.dp))
                     Text(
                         text = info.healthTip,
                         style = MaterialTheme.typography.bodySmall,
@@ -253,29 +282,29 @@ fun AlertScreen(
                     )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Dismiss button - BOTTOM CENTER
-            val btnShape = RoundedCornerShape(16.dp)
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = btnShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF7EC8A0),
-                    contentColor = Color(0xFF0B1026)
+        // Keep the primary dismiss action reachable independently of content height.
+        val btnShape = RoundedCornerShape(16.dp)
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 32.dp, vertical = dismissBottomPadding)
+                .fillMaxWidth(if (isLandscape) 0.55f else 1f)
+                .height(if (isLandscape) 48.dp else 56.dp),
+            shape = btnShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF7EC8A0),
+                contentColor = Color(0xFF0B1026)
+            )
+        ) {
+            Text(
+                "我知道了",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.SemiBold
                 )
-            ) {
-                Text(
-                    "我知道了",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
-                )
-            }
+            )
         }
     }
 }
