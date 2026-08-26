@@ -12,11 +12,19 @@ import com.sleepwatch.domain.repository.AlertMessageRepository
 import com.sleepwatch.domain.repository.SleepRecordRepository
 import com.sleepwatch.service.MonitorService
 import com.sleepwatch.service.MonitoringPermissionChecker
+import com.sleepwatch.service.accessibility.AccessibilityServiceStatusChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+internal fun permissionGuideSubtitle(accessibilityEnabled: Boolean): String =
+    if (accessibilityEnabled) {
+        "检查所需权限；后台增强已开启"
+    } else {
+        "检查所需权限；后台增强未开启"
+    }
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -25,6 +33,7 @@ class SettingsViewModel @Inject constructor(
     private val alertMessageRepository: AlertMessageRepository,
     private val achievementRepository: AchievementRepository,
     private val permissionChecker: MonitoringPermissionChecker,
+    private val accessibilityStatusChecker: AccessibilityServiceStatusChecker,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -52,6 +61,12 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     private val _permissionError = MutableStateFlow<String?>(null)
     val permissionError: StateFlow<String?> = _permissionError.asStateFlow()
+    private val _accessibilityEnabled = MutableStateFlow(false)
+    val accessibilityEnabled: StateFlow<Boolean> = _accessibilityEnabled.asStateFlow()
+
+    fun refreshAccessibilityStatus() {
+        _accessibilityEnabled.value = accessibilityStatusChecker.isEnabled()
+    }
 
     fun setMonitorStartTime(hour: Int, minute: Int) {
         viewModelScope.launch {

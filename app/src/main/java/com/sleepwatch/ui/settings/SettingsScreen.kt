@@ -13,6 +13,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +36,22 @@ fun SettingsScreen(
     val vibrationEnabled by viewModel.vibrationEnabled.collectAsState()
     val serviceEnabled by viewModel.serviceEnabled.collectAsState()
     val permissionError by viewModel.permissionError.collectAsState()
+    val accessibilityEnabled by viewModel.accessibilityEnabled.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshAccessibilityStatus()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshAccessibilityStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showMonitorTimePicker by remember { mutableStateOf(false) }
@@ -127,7 +146,7 @@ fun SettingsScreen(
         SettingsSection(title = "权限与引导") {
             SettingsItem(
                 title = "权限引导",
-                subtitle = "检查并设置所需权限",
+                subtitle = permissionGuideSubtitle(accessibilityEnabled),
                 icon = Icons.Default.Security,
                 onClick = onNavigateToSetup
             )
