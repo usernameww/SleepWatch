@@ -31,6 +31,7 @@ fun SetupScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val notificationTrigger by viewModel.notificationRequestTrigger.collectAsState()
+    val accessibilityDisclosureVisible by viewModel.accessibilityDisclosureVisible.collectAsState()
 
     // Permission launcher for POST_NOTIFICATIONS
     val notificationLauncher = rememberLauncherForActivityResult(
@@ -162,6 +163,29 @@ fun SetupScreen(
             }
         }
     }
+
+    if (accessibilityDisclosureVisible) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissAccessibilityDisclosure,
+            title = { Text("开启后台增强") },
+            text = {
+                Text(
+                    "SleepWatch 使用无障碍服务，仅用于在应用被划出最近任务后触发后台监测恢复。" +
+                        "不会读取、记录、上传或操作屏幕内容。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmAccessibilityDisclosure) {
+                    Text("前往开启")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissAccessibilityDisclosure) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -207,11 +231,7 @@ private fun PermissionCard(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = when {
-                        permission.isGranted -> "已授权"
-                        permission.isRequired -> "未授权（必需）"
-                        else -> "未设置（推荐）"
-                    },
+                    text = if (permission.isGranted) permission.grantedStatus else permission.missingStatus,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (permission.isGranted)
                         MaterialTheme.colorScheme.primary
@@ -222,7 +242,7 @@ private fun PermissionCard(
 
             if (!permission.isGranted) {
                 Button(onClick = onRequest) {
-                    Text("授权")
+                    Text(permission.actionLabel)
                 }
             }
         }

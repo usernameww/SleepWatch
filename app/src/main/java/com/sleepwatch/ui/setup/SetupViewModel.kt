@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
+import com.sleepwatch.service.accessibility.AccessibilityServiceStatusChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +20,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val accessibilityStatusChecker: AccessibilityServiceStatusChecker
 ) : ViewModel() {
 
     private val _permissions = MutableStateFlow<List<PermissionItem>>(emptyList())
@@ -27,6 +29,9 @@ class SetupViewModel @Inject constructor(
 
     private val _notificationRequestTrigger = MutableStateFlow(false)
     val notificationRequestTrigger: StateFlow<Boolean> = _notificationRequestTrigger
+
+    private val _accessibilityDisclosureVisible = MutableStateFlow(false)
+    val accessibilityDisclosureVisible: StateFlow<Boolean> = _accessibilityDisclosureVisible
 
     fun checkPermissions() {
         val items = mutableListOf<PermissionItem>()
@@ -77,6 +82,13 @@ class SetupViewModel @Inject constructor(
             action = { requestBatteryOptimization() }
         ))
 
+        items.add(
+            accessibilityPermissionItem(
+                isEnabled = accessibilityStatusChecker.isEnabled(),
+                onRequest = { _accessibilityDisclosureVisible.value = true }
+            )
+        )
+
         _permissions.value = items
     }
 
@@ -86,6 +98,18 @@ class SetupViewModel @Inject constructor(
 
     fun allRequiredGranted(): Boolean =
         _permissions.value.filter { it.isRequired }.all { it.isGranted }
+
+    fun confirmAccessibilityDisclosure() {
+        _accessibilityDisclosureVisible.value = false
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
+
+    fun dismissAccessibilityDisclosure() {
+        _accessibilityDisclosureVisible.value = false
+    }
 
     private fun requestOverlayPermission() {
         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
@@ -112,11 +136,3 @@ class SetupViewModel @Inject constructor(
         context.startActivity(intent)
     }
 }
-
-data class PermissionItem(
-    val name: String,
-    val description: String,
-    val isRequired: Boolean,
-    val isGranted: Boolean,
-    val action: () -> Unit
-)
