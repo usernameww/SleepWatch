@@ -25,4 +25,8 @@
     <string name="monitor_notification_title">SleepWatch 监测中</string>
     <string name="monitor_notification_text">正在监测您的睡眠状态</string>
     <string name="alert_channel_name">入睡提醒</string>
+
+    <!-- 可选的无障碍后台恢复 -->
+    <string name="accessibility_service_label">SleepWatch 后台增强</string>
+    <string name="accessibility_service_description">仅用于在 SleepWatch 被划出最近任务后恢复睡眠监测；不会读取或操作屏幕内容</string>
 </resources>
