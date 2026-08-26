@@ -27,7 +27,7 @@ class SleepWatchAccessibilityService : AccessibilityService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    private val recoveryCoordinator by lazy(LazyThreadSafetyMode.NONE) {
+    private val recoveryCoordinator by lazy {
         AccessibilityRecoveryCoordinator(
             isMonitoringEnabled = { settingsDataStore.serviceEnabled.first() },
             scheduleExactReconcile = alarmScheduler::scheduleReconcile,
