@@ -27,6 +27,13 @@ class MonitorAlarmScheduler @Inject constructor(
     fun scheduleWindowEnd(triggerAtMillis: Long) =
         schedule(ACTION_WINDOW_END, REQUEST_WINDOW_END, triggerAtMillis)
 
+    fun scheduleReconcile(triggerAtMillis: Long) {
+        if (!canScheduleExactAlarms()) {
+            throw SecurityException("Exact alarm permission is required for accessibility recovery")
+        }
+        schedule(ACTION_RECONCILE, REQUEST_RECONCILE, triggerAtMillis)
+    }
+
     fun reconcile(actions: List<ScheduledMonitorAction>) {
         cancelAll()
         actions.forEach { action ->
@@ -42,6 +49,7 @@ class MonitorAlarmScheduler @Inject constructor(
         cancel(ACTION_WINDOW_START, REQUEST_WINDOW_START)
         cancel(ACTION_CHECK, REQUEST_CHECK)
         cancel(ACTION_WINDOW_END, REQUEST_WINDOW_END)
+        cancel(ACTION_RECONCILE, REQUEST_RECONCILE)
     }
 
     fun canScheduleExactAlarms(): Boolean =
@@ -86,22 +94,19 @@ class MonitorAlarmScheduler @Inject constructor(
         const val ACTION_WINDOW_START = "com.sleepwatch.alarm.WINDOW_START"
         const val ACTION_CHECK = "com.sleepwatch.alarm.CHECK"
         const val ACTION_WINDOW_END = "com.sleepwatch.alarm.WINDOW_END"
+        const val ACTION_RECONCILE = "com.sleepwatch.alarm.RECONCILE"
         const val EXTRA_TRIGGER_AT = "com.sleepwatch.alarm.TRIGGER_AT"
 
         private const val REQUEST_WINDOW_START = 100
         private const val REQUEST_CHECK = 101
         private const val REQUEST_WINDOW_END = 102
+        private const val REQUEST_RECONCILE = 103
     }
 }
 
 class MonitorAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        val serviceAction = when (intent?.action) {
-            MonitorAlarmScheduler.ACTION_WINDOW_START -> MonitorService.ACTION_WINDOW_START
-            MonitorAlarmScheduler.ACTION_CHECK -> MonitorService.ACTION_CHECK
-            MonitorAlarmScheduler.ACTION_WINDOW_END -> MonitorService.ACTION_WINDOW_END
-            else -> return
-        }
+        val serviceAction = MonitorAlarmActionMapper.toServiceAction(intent?.action) ?: return
         ContextCompat.startForegroundService(
             context,
             Intent(context, MonitorService::class.java)
