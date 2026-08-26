@@ -1,7 +1,7 @@
 # SleepWatch 可选无障碍后台恢复增强设计
 
 > 日期：2026-08-26
-> 状态：已完成对话设计确认，等待书面规格审阅
+> 状态：已确认
 
 ## 背景
 
@@ -126,7 +126,7 @@ SleepWatch 当前使用前台 `MonitorService`、精确闹钟、开机广播和�
 
 ## 无障碍配置与隐私边界
 
-Manifest 中将服务声明为不可导出，并使用 `android.permission.BIND_ACCESSIBILITY_SERVICE` 保护。无障碍 XML 元数据使用最小配置：
+Manifest 按 Android 无障碍服务契约设置 `android:exported="true"`，同时强制使用签名级系统权限 `android.permission.BIND_ACCESSIBILITY_SERVICE`，因此只有系统可以绑定该服务。无障碍 XML 元数据使用最小配置：
 
 - 仅订阅 SleepWatch 自身包名的窗口状态事件，以满足服务配置要求；事件回调保持空实现。
 - 不请求读取窗口内容。
