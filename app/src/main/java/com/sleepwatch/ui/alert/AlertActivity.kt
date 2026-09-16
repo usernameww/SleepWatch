@@ -105,7 +105,7 @@ fun AlertScreen(
         label = "pulseScale"
     )
 
-    val landscapeScrollState = rememberScrollState()
+    val alertScrollState = rememberScrollState()
 
     BoxWithConstraints(
         modifier = Modifier
@@ -119,11 +119,33 @@ fun AlertScreen(
                     )
                 )
             )
+            // 悬浮窗会铺到系统栏区域，统一使用安全绘制区避免遮挡挖孔和手势导航条。
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         val isLandscape = maxWidth > maxHeight
-        val iconSize = if (isLandscape) 56.dp else 80.dp
-        val iconGlyphSize = if (isLandscape) 28.dp else 36.dp
-        val dismissBottomPadding = if (isLandscape) 12.dp else 48.dp
+        val isCompactHeight = !isLandscape && maxHeight < 720.dp
+        val horizontalPadding = when {
+            isLandscape -> 96.dp
+            maxWidth < 360.dp -> 20.dp
+            maxWidth < 420.dp -> 24.dp
+            else -> 32.dp
+        }
+        val iconSize = when {
+            isLandscape -> 56.dp
+            isCompactHeight -> 64.dp
+            else -> 80.dp
+        }
+        val iconGlyphSize = when {
+            isLandscape -> 28.dp
+            isCompactHeight -> 32.dp
+            else -> 36.dp
+        }
+        val contentSpacing = when {
+            isLandscape -> 8.dp
+            isCompactHeight -> 12.dp
+            else -> 24.dp
+        }
+        val dismissBottomPadding = if (isLandscape) 12.dp else 16.dp
 
         // Subtle radial glow
         Box(
@@ -149,7 +171,7 @@ fun AlertScreen(
             },
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = if (isLandscape) 4.dp else 48.dp)
+                .padding(start = 8.dp, top = 4.dp)
         ) {
             Text(
                 text = "今晚不再提醒",
@@ -162,17 +184,25 @@ fun AlertScreen(
             modifier = if (isLandscape) {
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(landscapeScrollState)
-                    .padding(horizontal = 96.dp)
-                    .padding(top = 16.dp, bottom = 84.dp)
+                    .verticalScroll(alertScrollState)
+                    .padding(horizontal = horizontalPadding)
+                    .padding(top = 12.dp, bottom = 80.dp)
             } else {
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 32.dp)
-                    .padding(top = 100.dp, bottom = 124.dp)
+                    .verticalScroll(alertScrollState)
+                    .padding(horizontal = horizontalPadding)
+                    .padding(
+                        top = if (isCompactHeight) 20.dp else 24.dp,
+                        bottom = if (isCompactHeight) 88.dp else 96.dp
+                    )
             },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = if (isLandscape) Arrangement.Top else Arrangement.Center
+            verticalArrangement = if (isLandscape || isCompactHeight) {
+                Arrangement.Top
+            } else {
+                Arrangement.Center
+            }
         ) {
             // Icon
             Box(
@@ -192,7 +222,7 @@ fun AlertScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 24.dp))
+            Spacer(modifier = Modifier.height(contentSpacing))
 
             // Time
             Text(
@@ -207,7 +237,15 @@ fun AlertScreen(
                 color = Color(0xFFF0ECE3)
             )
 
-            Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 32.dp))
+            Spacer(
+                modifier = Modifier.height(
+                    when {
+                        isLandscape -> 8.dp
+                        isCompactHeight -> 16.dp
+                        else -> 32.dp
+                    }
+                )
+            )
 
             // Message title with level indicator
             if (info != null) {
@@ -246,7 +284,7 @@ fun AlertScreen(
                     color = Color(0xFF7EC8A0)
                 )
 
-                Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 24.dp))
+                Spacer(modifier = Modifier.height(contentSpacing))
 
                 // Message content card
                 val msgShape = RoundedCornerShape(20.dp)
@@ -267,7 +305,11 @@ fun AlertScreen(
                         .border(0.5.dp, Color.White.copy(alpha = 0.06f), msgShape)
                         .padding(
                             horizontal = 24.dp,
-                            vertical = if (isLandscape) 10.dp else 20.dp
+                            vertical = when {
+                                isLandscape -> 10.dp
+                                isCompactHeight -> 14.dp
+                                else -> 20.dp
+                            }
                         )
                 )
 
@@ -290,7 +332,11 @@ fun AlertScreen(
             onClick = onDismiss,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 32.dp, vertical = dismissBottomPadding)
+                .padding(
+                    start = horizontalPadding,
+                    end = horizontalPadding,
+                    bottom = dismissBottomPadding
+                )
                 .fillMaxWidth(if (isLandscape) 0.55f else 1f)
                 .height(if (isLandscape) 48.dp else 56.dp),
             shape = btnShape,
